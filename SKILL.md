@@ -18,6 +18,8 @@ license: MIT
 
 ![Version](https://img.shields.io/badge/version-1.4.1-339CFF) ![License](https://img.shields.io/badge/license-MIT-22c55e) ![Status](https://img.shields.io/badge/status-stable-924ff7)
 
+![面板效果](assets/screenshot.png)
+
 </div>
 
 ---
