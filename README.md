@@ -114,6 +114,7 @@ python3 validate.py data.json
 
 ## 八、版本记录
 
+- **v1.4.1**：修复「云端状态同步后顶部统计不联动」（applyState 后重算 renderStats）；状态加载改双通道（静态秒开 + Hook 权威覆盖）；SKILL.md 重写为美化版使用指南（目录 / 表格 / FAQ 折叠 / 徽章）。
 - **v1.4**：沉淀实战经验——云端状态同步（`/api/state`）、三层自动更新保障（全局规则 / 看门狗 / 每日定时）、部署要点（R2 CORS、上传重试、绝对地址 fetch、CSP 注入）、已知坑（沙箱 iframe 无 localStorage、print 受限不做 PDF）、详细周报（复制 / 下载 txt）、Token 用量自动回写（`update_tokens.py`，含月度聚合）；校验器新增 `blocked` 状态；文档明确「基线模板 vs 完整功能版」口径。
 - **v1.3**：新增面向用户的 `SKILL.md` 说明文档，重写为详细教程（含快速开始、使用流程、维护约定、FAQ），并美化排版。
 - **v1.2**：更名为「Agent本地项目管理」，数据源状态条支持手动关闭（关闭状态本地记忆）。
@@ -151,6 +152,8 @@ python3 validate.py data.json
 - 上传脚本逐对象**重试 3 次**（捕获全部异常）。
 - 渲染后注入 favicon，并把 `connect-src` 补上 hook/静态域名。
 - 沙箱 iframe 无 `localStorage`、`window.print()` 可能被拦截 → 持久化走云端、导出用复制/下载。
+- 云端状态同步后**必须重算统计**：`applyState` 应用服务器状态后调用 `renderStats()`，否则时间线显示「已完成」而顶部统计不更新。
+- 状态加载用**双通道**（静态快照秒开 + Hook 权威覆盖），避免慢隧道导致统计长时间停留在旧值。
 
 ### 4. Token 绑定（防止「文档更新了、Token 还是旧的」）
 
