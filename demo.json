@@ -1,0 +1,178 @@
+{
+  "templateVersion": "1.2",
+  "updated": "08-06",
+  "updatedAt": "2026-08-06T10:00:00+08:00",
+  "pageTitle": "Agent本地项目管理",
+  "subtitle": "演示数据 · 复制为 data.json 即可预览完整效果",
+  "months": ["5月", "6月", "7月", "8月"],
+  "archivedTokens": 12000000,
+  "projects": [
+    {
+      "id": "p1",
+      "name": "个人作品集主页",
+      "date": "2026-05-17",
+      "month": 0,
+      "cat": "求职作品集",
+      "conv": 2,
+      "status": "doing",
+      "progress": 65,
+      "tokens": 4600000,
+      "updated": "2026-05-17",
+      "review": "user_confirmed",
+      "intro": "以数字媒体艺术为定位的个人作品集主页，包含简介、作品展示与简历，是求职展示的入口页面。主页已完成，待补充最新作品与数据。",
+      "milestones": [
+        { "date": "05-17", "text": "主页单页完成", "done": true },
+        { "date": "05-17", "text": "简历 PDF 导出", "done": true },
+        { "date": "至今", "text": "补充最新作品与播放数据", "done": false }
+      ],
+      "next": [
+        { "text": "补充最新作品与数据，提升说服力", "p": "high" },
+        { "text": "用真实求职结果复盘页面转化", "p": "mid" }
+      ],
+      "criteria": [
+        { "done": true, "text": "主页可访问且排版完整" },
+        { "done": false, "text": "展示近 3 个有数据的代表作品" },
+        { "done": false, "text": "完成一轮真实投递验证" }
+      ],
+      "files": ["index.html", "resume.pdf"],
+      "dir": "portfolio/"
+    },
+    {
+      "id": "p2",
+      "name": "视频转录工作流",
+      "date": "2026-06-10",
+      "month": 1,
+      "cat": "学习工具",
+      "conv": 4,
+      "status": "done",
+      "progress": 100,
+      "tokens": 8900000,
+      "updated": "2026-06-18",
+      "review": "user_confirmed",
+      "intro": "把讲座视频转成结构化笔记的工作流，含转写、分段、校对与成稿模板，已稳定使用。",
+      "milestones": [
+        { "date": "06-10", "text": "转写工具选型完成", "done": true },
+        { "date": "06-15", "text": "笔记模板定稿", "done": true },
+        { "date": "06-18", "text": "完成 3 场讲座转写验收", "done": true }
+      ],
+      "next": [
+        { "text": "沉淀为可对外输出的效率教程", "p": "mid" }
+      ],
+      "criteria": [
+        { "done": true, "text": "60 分钟视频 15 分钟内出稿" },
+        { "done": true, "text": "成稿经人工校对无误" },
+        { "done": true, "text": "产出笔记模板一份" }
+      ],
+      "files": ["workflow.md", "template.md"],
+      "dir": "transcript/"
+    },
+    {
+      "id": "p3",
+      "name": "考研数学 IP 策划",
+      "date": "2026-07-02",
+      "month": 2,
+      "cat": "内容策划",
+      "conv": 3,
+      "status": "doing",
+      "progress": 35,
+      "tokens": 5200000,
+      "updated": "2026-07-20",
+      "review": "agent_draft",
+      "intro": "面向考研人群的数学内容 IP：人设、选题库、脚本模板与账号策略已经成型，待产出前两条验证视频。",
+      "milestones": [
+        { "date": "07-02", "text": "人设与定位定稿", "done": true },
+        { "date": "07-12", "text": "20 大选题库完成", "done": true },
+        { "date": "待定", "text": "发布前两条验证视频", "done": false }
+      ],
+      "next": [
+        { "text": "完成 2 条验证视频并复盘数据", "p": "high" },
+        { "text": "按数据迭代选题优先级", "p": "mid" }
+      ],
+      "criteria": [
+        { "done": true, "text": "定位与账号策略文档完成" },
+        { "done": true, "text": "选题库 ≥ 20 条并附脚本模板" },
+        { "done": false, "text": "验证视频 2 条，完播率达基线" }
+      ],
+      "files": ["ip-plan.md", "topics.md"],
+      "dir": "kaoyan-ip/"
+    }
+  ],
+  "current": {
+    "id": "now",
+    "name": "项目管理面板模板",
+    "date": "2026-08-06",
+    "month": 3,
+    "cat": "部署",
+    "conv": 1,
+    "status": "doing",
+    "progress": 60,
+    "tokens": 2300000,
+    "updated": "2026-08-06",
+    "review": "agent_draft",
+    "intro": "把项目管理面板蒸馏为通用模板：数据驱动、本地 Agent 维护 data.json，含校验器与使用文档。",
+    "milestones": [
+      { "date": "08-06", "text": "模板页面与数据 schema 完成", "done": true },
+      { "date": "08-06", "text": "校验器 validate.py 完成", "done": true },
+      { "date": "持续", "text": "每次任务更新或收尾时同步刷新 data.json", "done": false }
+    ],
+    "next": [
+      { "text": "按评审意见补全校验闭环与文档", "p": "high" },
+      { "text": "发布后收集使用反馈迭代 v1.2", "p": "mid" }
+    ],
+    "criteria": [
+      { "done": true, "text": "页面数据全部来自 data.json" },
+      { "done": true, "text": "提供校验器与制作流程文档" },
+      { "done": false, "text": "经过至少一次外部 Agent 实际使用验证" }
+    ],
+    "files": ["template.html", "validate.py", "README.md"],
+    "dir": "项目面板模板/"
+  },
+  "empty": [
+    { "id": "e1", "label": "06-03", "date": "2026-06-03", "count": 2, "month": 1, "note": "会话目录为空，未留下任何产出" }
+  ],
+  "topics": [
+    {
+      "title": "用 AI 把老照片变成「会动的回忆」",
+      "type": "短视频 · AIGC",
+      "desc": "老照片修复 + 动态化一条龙展示，情感向内容自带传播与收藏属性。",
+      "project": "作品集视频库",
+      "plan": [
+        "定位：情感共鸣 + AI 技能展示双收",
+        "大纲：老照片原图 → 修复 → 动态化 → 成片对比",
+        "发布：抖音 / B 站 / 小红书",
+        "参考素材：即梦 + 剪映教程",
+        "结合：沉淀为 AIGC 情感向样片"
+      ]
+    },
+    {
+      "title": "我的 AI 工具工作台大公开",
+      "type": "效率 · AI 工具",
+      "desc": "一次讲清写作、转录、绘画、编程四类场景的 AI 工具组合。",
+      "project": "视频转录",
+      "plan": [
+        "定位：工具测评 / 效率种草，收藏率高",
+        "大纲：桌面全景 → 场景分类 → 成本对比 → 清单",
+        "发布：B 站 / 小红书",
+        "结合：复用转录项目全流程为案例"
+      ]
+    },
+    {
+      "title": "考研数学错题本 30 天挑战",
+      "type": "短视频 · 挑战",
+      "desc": "连续 30 天公开整理错题本，把自律做成可追更的内容系列。",
+      "project": "考研数学 IP 策划",
+      "plan": [
+        "定位：挑战类内容有天然追更动力",
+        "大纲：立 flag → 每日高频错题 → 每周数据总结",
+        "节奏：单条 30-60 秒，日更或隔日更",
+        "结合：与 149 分选手人设互相关联"
+      ]
+    }
+  ],
+  "news": [
+    { "date": "08-06", "source": "量子位", "title": "阿里正式发布 Qwen3.8-Max：2.4 万亿参数", "url": "https://example.com/qwen" },
+    { "date": "08-05", "source": "IT之家", "title": "Anthropic 首次确认自研 AI 芯片", "url": "https://example.com/anthropic" },
+    { "date": "08-04", "source": "澎湃新闻", "title": "DeepSeek-V4-Flash 正式版 API 上线公测", "url": "https://example.com/deepseek" },
+    { "date": "08-03", "source": "证券时报", "title": "OpenAI 确认下一代模型系列名称 Astra", "url": "https://example.com/astra" }
+  ]
+}

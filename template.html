@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent本地项目管理</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: light-dark(#f4f7fc, #15171c);
+  --card: light-dark(#ffffff, #23262d);
+  --card-2: light-dark(#f0f4fb, #1d2026);
+  --fg: light-dark(#1c1f24, #f1f2f5);
+  --muted: light-dark(rgba(28,31,36,.56), rgba(241,242,245,.56));
+  --line: light-dark(rgba(28,31,36,.1), rgba(255,255,255,.12));
+  --blue: #339CFF;
+  --purple: #924FF7;
+  --green: #2FBF71;
+  --yellow: #F2B705;
+  --orange: #F2711C;
+  --ring: #339CFF;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 15px; line-height: 1.55; }
+button { font: inherit; }
+a { color: color-mix(in srgb, var(--blue) 82%, var(--fg)); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+#codex-project-board {
+  display: flex; flex-direction: column; gap: 22px; position: relative;
+  padding: 28px 24px 64px; border-radius: 22px; max-width: 1180px; margin: 0 auto;
+  background:
+    radial-gradient(75% 50% at 50% -6%, color-mix(in srgb, var(--blue) 9%, transparent), transparent 72%),
+    radial-gradient(42% 32% at 92% 4%, color-mix(in srgb, var(--purple) 7%, transparent), transparent 70%),
+    radial-gradient(60% 45% at 50% 108%, color-mix(in srgb, var(--blue) 7%, transparent), transparent 68%),
+    var(--bg);
+}
+#codex-project-board [hidden] { display: none !important; }
+#codex-project-board .text-small { font-size: 12.5px; }
+#codex-project-board .text-muted { color: var(--muted); }
+#codex-project-board .pt-tabs-wrap { position: sticky; bottom: 10px; z-index: 30; display: flex; justify-content: center; }
+#codex-project-board .pt-tabs { display: inline-flex; gap: 4px; padding: 5px; background: color-mix(in srgb, var(--card) 88%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); border: 1px solid color-mix(in srgb, var(--blue) 28%, transparent); border-radius: 999px; box-shadow: 0 8px 24px color-mix(in srgb, var(--fg) 16%, transparent); }
+#codex-project-board .pt-tab { height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 14px; border: none; border-radius: 999px; background: transparent; color: color-mix(in srgb, var(--blue) 58%, var(--fg)); cursor: pointer; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
+#codex-project-board .pt-tab[aria-selected="true"] { background: var(--blue); color: #fff; box-shadow: 0 4px 14px color-mix(in srgb, var(--blue) 38%, transparent); }
+#codex-project-board .btn-ghost { display: inline-flex; align-items: center; gap: 6px; border-radius: 9px; padding: 7px 12px; cursor: pointer; }
+#codex-project-board .pt-hero, #codex-project-board .pt-legend, #codex-project-board #pt-timeline, #codex-project-board #pt-detail { position: relative; z-index: 1; }
+#codex-project-board #pt-view-board { display: flex; flex-direction: column; gap: 20px; }
+#codex-project-board #pt-timeline { display: flex; flex-direction: column; gap: 18px; }
+#codex-project-board .pt-panel {
+  background: var(--card);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--fg) 4%, transparent), 0 10px 30px color-mix(in srgb, var(--fg) 6%, transparent);
+}
+#codex-project-board .pt-stat-done { background: linear-gradient(160deg, color-mix(in srgb, var(--green) 16%, var(--card)), var(--card) 72%); border-color: color-mix(in srgb, var(--green) 30%, transparent); }
+#codex-project-board .pt-stat-doing { background: linear-gradient(160deg, color-mix(in srgb, var(--blue) 16%, var(--card)), var(--card) 72%); border-color: color-mix(in srgb, var(--blue) 30%, transparent); }
+#codex-project-board .pt-stat-empty { background: linear-gradient(160deg, color-mix(in srgb, var(--orange) 14%, var(--card)), var(--card) 72%); border-color: color-mix(in srgb, var(--orange) 28%, transparent); }
+#codex-project-board .pt-stat-tokens { background: linear-gradient(160deg, color-mix(in srgb, var(--purple) 16%, var(--card)), var(--card) 72%); border-color: color-mix(in srgb, var(--purple) 30%, transparent); }
+#codex-project-board .pt-stat-done .pt-stat-icon { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+#codex-project-board .pt-stat-doing .pt-stat-icon { color: var(--blue); background: color-mix(in srgb, var(--blue) 14%, transparent); }
+#codex-project-board .pt-stat-empty .pt-stat-icon { color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent); }
+#codex-project-board .pt-stat-tokens .pt-stat-icon { color: var(--purple); background: color-mix(in srgb, var(--purple) 14%, transparent); }
+#codex-project-board .pt-hero-stats .pt-panel { border-radius: 14px; transition: transform .18s ease, box-shadow .18s ease; }
+#codex-project-board .pt-hero-stats .pt-panel:hover { transform: translateY(-2px); box-shadow: 0 10px 26px color-mix(in srgb, var(--fg) 8%, transparent); }
+#codex-project-board .pt-hero { display: flex; gap: 28px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+#codex-project-board .pt-hero-main { flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 14px; }
+#codex-project-board .pt-hero-title-row { display: flex; align-items: center; gap: 12px; }
+#codex-project-board .pt-export { margin-left: auto; background: color-mix(in srgb, var(--blue) 10%, transparent); border: 1px solid color-mix(in srgb, var(--blue) 30%, transparent); color: color-mix(in srgb, var(--blue) 80%, var(--fg)); }
+#codex-project-board .pt-export:hover { background: color-mix(in srgb, var(--blue) 16%, transparent); }
+#codex-project-board .pt-hero-icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 11px; background: linear-gradient(135deg, var(--blue), color-mix(in srgb, var(--purple) 68%, var(--blue))); border: none; color: #fff; box-shadow: 0 4px 12px color-mix(in srgb, var(--blue) 30%, transparent); }
+#codex-project-board .pt-hero-title { font-weight: 700; font-size: 25px; letter-spacing: -0.02em; background: linear-gradient(120deg, color-mix(in srgb, var(--blue) 88%, var(--fg)), color-mix(in srgb, var(--purple) 78%, var(--fg))); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#codex-project-board .pt-hero-accent { height: 1px; background: color-mix(in srgb, var(--blue) 32%, transparent); }
+#codex-project-board .pt-hero-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+#codex-project-board .pt-stat-top { display: flex; align-items: center; gap: 8px; }
+#codex-project-board .pt-stat-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 10px; }
+#codex-project-board .viz-stat-value { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 4px 0 2px; }
+#codex-project-board .pt-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; color: color-mix(in srgb, var(--blue) 62%, var(--fg)); }
+#codex-project-board .sw { display: inline-flex; align-items: center; gap: 6px; }
+#codex-project-board .sw-dot { width: 8px; height: 8px; border-radius: 50%; }
+#codex-project-board .sw-dash { width: 14px; height: 8px; border: 1px dashed color-mix(in srgb, var(--orange) 45%, transparent); border-radius: 3px; }
+#codex-project-board .pt-month { display: flex; gap: 14px; align-items: flex-start; }
+#codex-project-board .pt-month-label { flex: 0 0 auto; min-width: 60px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+#codex-project-board .pt-month-pill { font-weight: 600; color: color-mix(in srgb, var(--blue) 86%, var(--fg)); background: linear-gradient(160deg, var(--card), color-mix(in srgb, var(--blue) 9%, var(--card))); border: 1px solid color-mix(in srgb, var(--blue) 28%, transparent); border-radius: 10px; padding: 5px 13px; box-shadow: 0 2px 8px color-mix(in srgb, var(--blue) 10%, transparent); }
+#codex-project-board .pt-month-count { color: var(--muted); }
+#codex-project-board .pt-month-items { position: relative; display: flex; flex-wrap: wrap; gap: 12px; flex: 1; }
+#codex-project-board .pt-tile {
+  display: inline-flex; flex-direction: column; gap: 10px; align-items: stretch; text-align: left;
+  padding: 14px 16px; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--cat) 24%, transparent);
+  border-left: 4px solid var(--cat);
+  background: linear-gradient(150deg, color-mix(in srgb, var(--cat) 22%, var(--card)), var(--card) 60%);
+  color: var(--fg); cursor: pointer;
+  min-width: 200px; max-width: 250px;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--cat) 13%, transparent);
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+#codex-project-board .pt-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 20px color-mix(in srgb, var(--cat) 18%, transparent); }
+#codex-project-board .pt-tile[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ring), 0 8px 20px color-mix(in srgb, var(--cat) 14%, transparent); transform: translateY(-2px); }
+#codex-project-board .pt-chip {
+  position: relative; display: inline-flex; align-items: stretch;
+  padding: 8px 28px 8px 12px; border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--orange) 40%, transparent); min-width: 140px;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--orange) 20%, var(--card)), var(--card) 72%);
+  color: color-mix(in srgb, var(--orange) 68%, var(--fg));
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+#codex-project-board .pt-chip:hover { transform: translateY(-1px); }
+#codex-project-board .pt-chip.is-open { border-color: var(--ring); box-shadow: 0 0 0 2px var(--ring); }
+#codex-project-board .pt-chip-main { display: inline-flex; flex-direction: column; gap: 3px; align-items: flex-start; text-align: left; background: none; border: none; padding: 0; margin: 0; color: inherit; cursor: pointer; }
+#codex-project-board .pt-chip-del { position: absolute; top: 7px; right: 7px; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: color-mix(in srgb, var(--orange) 16%, transparent); border: none; color: color-mix(in srgb, var(--orange) 72%, var(--fg)); cursor: pointer; padding: 0; }
+#codex-project-board .pt-name-row { display: flex; align-items: center; gap: 6px; }
+#codex-project-board .pt-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+#codex-project-board .pt-cat-tag { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 6px; background: color-mix(in srgb, var(--cat) 15%, transparent); color: color-mix(in srgb, var(--cat) 72%, var(--fg)); }
+#codex-project-board .pt-status-pill { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-weight: 500; }
+#codex-project-board .pt-next { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; color: color-mix(in srgb, var(--cat) 58%, var(--fg)); }
+#codex-project-board .pt-status-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+#codex-project-board .pt-name { font-weight: 600; }
+#codex-project-board .pt-stale-tag { padding: 1px 8px; border-radius: 6px; background: color-mix(in srgb, var(--orange) 14%, transparent); color: color-mix(in srgb, var(--orange) 72%, var(--fg)); }
+#codex-project-board .pt-bar-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+#codex-project-board .pt-bar { flex: 1; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--fill, var(--blue)) 20%, transparent); overflow: hidden; }
+#codex-project-board .pt-bar-fill { display: block; height: 100%; border-radius: 2px; background: var(--fill, var(--blue)); transition: width .2s ease; }
+#codex-project-board .pt-pct { min-width: 34px; text-align: right; color: var(--muted); }
+#codex-project-board #pt-detail.pt-inline { flex: 1 1 100%; }
+#codex-project-board .pt-detail { display: flex; flex-direction: column; gap: 18px; }
+#codex-project-board .pt-detail-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+#codex-project-board .pt-detail-title { font-weight: 600; font-size: 17px; }
+#codex-project-board .pt-meta-line { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; color: var(--muted); }
+#codex-project-board .pt-tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 6px; background: color-mix(in srgb, var(--blue) 10%, transparent); color: color-mix(in srgb, var(--blue) 78%, var(--fg)); }
+#codex-project-board .pt-status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-weight: 500; }
+#codex-project-board .pt-section { display: flex; flex-direction: column; gap: 8px; }
+#codex-project-board .pt-sec-head { display: flex; align-items: center; gap: 7px; color: color-mix(in srgb, var(--blue) 62%, var(--fg)); font-weight: 600; }
+#codex-project-board .pt-sec-head i { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 6px; background: color-mix(in srgb, var(--blue) 12%, transparent); color: var(--blue); }
+#codex-project-board .pt-intro { margin: 0; }
+#codex-project-board .pt-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+#codex-project-board .pt-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+#codex-project-board .pt-ms-list, #codex-project-board .pt-nx-list, #codex-project-board .pt-cr-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+#codex-project-board .pt-ms-list { border-left: 1px solid color-mix(in srgb, var(--blue) 26%, transparent); padding-left: 14px; margin-left: 3px; }
+#codex-project-board .pt-ms { display: flex; align-items: center; gap: 8px; }
+#codex-project-board .pt-ms-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: none; }
+#codex-project-board .pt-ms:not(.is-done) .pt-ms-dot { background: transparent; border: 1px dashed color-mix(in srgb, var(--blue) 50%, transparent); }
+#codex-project-board .pt-ms-date { flex: none; min-width: 36px; color: var(--muted); }
+#codex-project-board .pt-ms:not(.is-done) { color: var(--muted); }
+#codex-project-board .pt-nx { display: flex; align-items: center; gap: 8px; }
+#codex-project-board .pt-nx-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+#codex-project-board .pt-pri { flex: none; padding: 1px 8px; border-radius: 6px; font-weight: 500; }
+#codex-project-board .pt-cr { display: flex; align-items: center; gap: 8px; }
+#codex-project-board .pt-cr.is-done .pt-cr-text { text-decoration: line-through; opacity: .65; }
+#codex-project-board .pt-files { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+#codex-project-board .pt-controls { display: flex; flex-wrap: wrap; gap: 12px 28px; }
+#codex-project-board .pt-field { display: flex; flex-direction: column; gap: 6px; min-width: 150px; }
+#codex-project-board .pt-range { flex: 1; min-width: 200px; }
+#codex-project-board .form-select, #codex-project-board .form-range { font: inherit; color: var(--fg); background: var(--card-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+#codex-project-board #pt-view-topics { display: flex; flex-direction: column; gap: 16px; }
+#codex-project-board .pt-topics-head { display: flex; flex-direction: column; gap: 6px; }
+#codex-project-board .pt-topics-list { display: flex; flex-direction: column; gap: 10px; }
+#codex-project-board .pt-topic { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-radius: 10px; background: linear-gradient(150deg, color-mix(in srgb, var(--blue) 14%, var(--card)), var(--card) 55%); border: 1px solid color-mix(in srgb, var(--blue) 24%, transparent); border-left: 3px solid var(--blue); box-shadow: 0 2px 10px color-mix(in srgb, var(--blue) 10%, transparent); }
+#codex-project-board .pt-topic-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#codex-project-board .pt-topic-idx { font-weight: 600; color: color-mix(in srgb, var(--blue) 66%, var(--fg)); }
+#codex-project-board .pt-topic-toggle { background: none; border: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; text-align: left; flex: 1; min-width: 200px; }
+#codex-project-board .pt-topic-title { font-weight: 600; }
+#codex-project-board .pt-topic-type { padding: 1px 8px; border-radius: 6px; background: color-mix(in srgb, var(--blue) 13%, transparent); color: color-mix(in srgb, var(--blue) 70%, var(--fg)); flex: none; }
+#codex-project-board .pt-topic-desc { color: color-mix(in srgb, var(--blue) 52%, var(--fg)); }
+#codex-project-board .pt-topic-project { color: color-mix(in srgb, var(--blue) 62%, var(--fg)); flex: none; }
+#codex-project-board .pt-topic-plan { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--blue) 7%, var(--card)); border: 1px dashed color-mix(in srgb, var(--blue) 28%, transparent); }
+#codex-project-board .pt-topic-plan-row { display: flex; align-items: flex-start; gap: 7px; color: color-mix(in srgb, var(--blue) 52%, var(--fg)); }
+#codex-project-board .pt-topic-plan-row::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, var(--blue) 60%, transparent); flex: none; margin-top: 6px; }
+#codex-project-board .pt-inspire { display: flex; flex-direction: column; gap: 10px; background: linear-gradient(150deg, color-mix(in srgb, var(--purple) 14%, var(--card)), var(--card) 55%); border-color: color-mix(in srgb, var(--purple) 28%, transparent); }
+#codex-project-board .pt-inspire-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#codex-project-board .pt-inspire-title { font-weight: 600; }
+#codex-project-board .pt-news { display: flex; flex-direction: column; gap: 10px; }
+#codex-project-board .pt-news-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+#codex-project-board .pt-news-item { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+#codex-project-board .pt-news-item:last-child { border-bottom: none; }
+#codex-project-board .pt-news-date { flex: none; min-width: 38px; color: color-mix(in srgb, var(--purple) 60%, var(--fg)); }
+#codex-project-board .pt-news-item a { color: var(--fg); flex: 1; }
+#codex-project-board .pt-news-item a:hover { color: var(--blue); }
+#codex-project-board .pt-news-source { flex: none; color: color-mix(in srgb, var(--purple) 55%, var(--fg)); }
+#codex-project-board .pt-news-updated { color: color-mix(in srgb, var(--green) 70%, var(--fg)); }
+#codex-project-board .pt-priority { display: flex; flex-direction: column; gap: 10px; }
+#codex-project-board .pt-priority-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+#codex-project-board .pt-priority-check { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+#codex-project-board .pt-priority-check input { margin-top: 3px; accent-color: var(--green); }
+#codex-project-board .pt-priority-name { font-weight: 600; flex: none; }
+#codex-project-board .pt-priority-action { color: var(--muted); }
+#codex-project-board .pt-priority-check.is-done .pt-priority-action { text-decoration: line-through; opacity: .6; }
+#codex-project-board .pt-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+#codex-project-board .pt-filter-group { display: inline-flex; gap: 4px; padding: 4px; background: color-mix(in srgb, var(--card) 80%, transparent); border: 1px solid color-mix(in srgb, var(--blue) 24%, transparent); border-radius: 10px; }
+#codex-project-board .pt-filter { border: none; background: transparent; color: color-mix(in srgb, var(--blue) 60%, var(--fg)); font-weight: 500; padding: 5px 12px; border-radius: 7px; cursor: pointer; transition: background .15s ease, color .15s ease; }
+#codex-project-board .pt-filter[aria-pressed="true"] { background: var(--blue); color: #fff; box-shadow: 0 3px 10px color-mix(in srgb, var(--blue) 32%, transparent); }
+#codex-project-board .pt-filter-select { min-width: 110px; }
+#codex-project-board .pt-chart { display: flex; flex-direction: column; gap: 12px; }
+#codex-project-board .pt-chart-bars { display: flex; align-items: flex-end; gap: 16px; height: 150px; padding: 18px 4px 0; }
+#codex-project-board .pt-chart-bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+#codex-project-board .pt-chart-fill { width: 72%; max-width: 56px; border-radius: 8px 8px 4px 4px; background: linear-gradient(180deg, color-mix(in srgb, var(--blue) 72%, #fff), var(--blue) 72%); box-shadow: 0 6px 16px color-mix(in srgb, var(--blue) 22%, transparent); }
+#codex-project-board .pt-chart-val { color: color-mix(in srgb, var(--blue) 66%, var(--fg)); }
+#codex-project-board .pt-chart-label { color: var(--muted); }
+#codex-project-board .pt-toast { position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%) translateY(8px); z-index: 40; background: color-mix(in srgb, var(--card) 94%, transparent); border: 1px solid color-mix(in srgb, var(--green) 40%, transparent); border-radius: 999px; padding: 10px 18px; box-shadow: 0 8px 24px color-mix(in srgb, var(--fg) 16%, transparent); opacity: 0; transition: opacity .25s ease, transform .25s ease; pointer-events: none; }
+#codex-project-board .pt-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#codex-project-board .pt-toast { display: inline-flex; align-items: center; gap: 8px; }
+#codex-project-board #pt-toast button { border: none; border-radius: 8px; padding: 4px 12px; background: var(--blue); color: #fff; cursor: pointer; font-weight: 600; }
+#codex-project-board .pt-data-status { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 10px; font-size: 12.5px; border: 1px solid transparent; }
+#codex-project-board .pt-data-status .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+#codex-project-board .pt-data-status.ok { background: color-mix(in srgb, var(--green) 12%, var(--card)); border-color: color-mix(in srgb, var(--green) 30%, transparent); color: color-mix(in srgb, var(--green) 76%, var(--fg)); }
+#codex-project-board .pt-data-status.ok .dot { background: var(--green); }
+#codex-project-board .pt-data-status.warn { background: color-mix(in srgb, var(--orange) 14%, var(--card)); border-color: color-mix(in srgb, var(--orange) 34%, transparent); color: color-mix(in srgb, var(--orange) 78%, var(--fg)); }
+#codex-project-board .pt-data-status.warn .dot { background: var(--orange); }
+#codex-project-board .pt-data-close { margin-left: auto; flex: none; width: 22px; height: 22px; border: none; border-radius: 50%; background: color-mix(in srgb, var(--green) 16%, transparent); color: color-mix(in srgb, var(--green) 78%, var(--fg)); cursor: pointer; font-size: 14px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+#codex-project-board .pt-data-close:hover { background: color-mix(in srgb, var(--green) 30%, transparent); }
+#codex-project-board .pt-inspire-rotate { padding: 1px 8px; border-radius: 6px; background: color-mix(in srgb, var(--purple) 13%, transparent); color: color-mix(in srgb, var(--purple) 72%, var(--fg)); margin-left: 6px; }
+#codex-project-board .pt-onboard { display: flex; flex-direction: column; gap: 12px; padding: 26px 22px; text-align: center; align-items: center; }
+#codex-project-board .pt-onboard-steps { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+#codex-project-board .pt-onboard-step { flex: 1 1 200px; display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 12px; background: color-mix(in srgb, var(--blue) 8%, var(--card)); border: 1px solid color-mix(in srgb, var(--blue) 22%, transparent); text-align: left; }
+#codex-project-board .pt-onboard-step b { color: var(--blue); }
+@media (max-width: 1024px) {
+  #codex-project-board .pt-grid2 { grid-template-columns: 1fr; }
+  #codex-project-board .pt-hero { gap: 20px; }
+}
+@media (max-width: 900px) {
+  #codex-project-board .pt-hero-stats { grid-template-columns: repeat(2, 1fr); }
+  #codex-project-board .pt-tile { flex: 1 1 calc(50% - 6px); min-width: 0; max-width: none; }
+}
+@media (max-width: 700px) {
+  #codex-project-board { padding: 20px 14px 56px; gap: 18px; border-radius: 16px; }
+  #codex-project-board .pt-hero-title { font-size: 21px; }
+  #codex-project-board .pt-hero-stats .pt-panel { padding: 14px 16px; }
+  #codex-project-board .pt-chart-bars { gap: 10px; }
+  #codex-project-board .pt-tab { height: 38px; padding: 0 12px; }
+  #codex-project-board .pt-filter-select { flex: 1 1 45%; min-width: 120px; }
+}
+@media (max-width: 600px) {
+  #codex-project-board .pt-tile { flex: 1 1 100%; max-width: none; }
+  #codex-project-board .pt-month { flex-direction: column; gap: 8px; }
+  #codex-project-board .pt-month-label { flex-direction: row; align-items: center; gap: 8px; min-width: 0; }
+  #codex-project-board .pt-topic-toggle { min-width: 0; }
+}
+@media (max-width: 460px) {
+  #codex-project-board .pt-hero-stats { grid-template-columns: 1fr; }
+  #codex-project-board .pt-hero-title-row { flex-wrap: wrap; }
+  #codex-project-board .pt-export { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #codex-project-board .pt-tile, #codex-project-board .pt-chip, #codex-project-board .pt-bar-fill { transition: none; }
+}
+</style>
+</head>
+<body>
+<div id="codex-project-board">
+  <div id="pt-view-board">
+    <div id="pt-data-status" class="pt-data-status" role="status" aria-live="polite"></div>
+    <div class="pt-hero">
+      <div class="pt-hero-main">
+        <div class="pt-hero-title-row">
+          <span class="pt-hero-icon"><i data-lucide="layout-dashboard" aria-hidden="true"></i></span>
+          <div>
+            <div class="pt-hero-title" id="pt-page-title">Agent本地项目管理</div>
+            <div class="text-small text-muted" id="pt-page-sub">由本地 Agent 扫描对话目录自动生成</div>
+          </div>
+          <button type="button" class="btn-ghost pt-export" id="pt-export"><i data-lucide="download" aria-hidden="true"></i>导出数据</button>
+        </div>
+        <div class="pt-hero-accent" aria-hidden="true"></div>
+        <div class="pt-hero-stats">
+          <div class="pt-panel pt-stat-done">
+            <div class="pt-stat-top"><span class="pt-stat-icon"><i data-lucide="check-circle-2" aria-hidden="true"></i></span><span class="text-small">已完成</span></div>
+            <div class="viz-stat-value" id="pt-stat-done">0</div>
+            <div class="text-small text-muted">严格标准：全部标准闭环</div>
+          </div>
+          <div class="pt-panel pt-stat-doing">
+            <div class="pt-stat-top"><span class="pt-stat-icon"><i data-lucide="loader" aria-hidden="true"></i></span><span class="text-small">进行中</span></div>
+            <div class="viz-stat-value" id="pt-stat-doing">0</div>
+            <div class="text-small text-muted" id="pt-stat-doing-sub">尚未闭环</div>
+          </div>
+          <div class="pt-panel pt-stat-empty">
+            <div class="pt-stat-top"><span class="pt-stat-icon"><i data-lucide="archive" aria-hidden="true"></i></span><span class="text-small">已归档对话</span></div>
+            <div class="viz-stat-value" id="pt-stat-empty">0</div>
+            <div class="text-small text-muted" id="pt-stat-empty-sub">无产出对话不计入项目</div>
+          </div>
+          <div class="pt-panel pt-stat-tokens">
+            <div class="pt-stat-top"><span class="pt-stat-icon"><i data-lucide="coins" aria-hidden="true"></i></span><span class="text-small">累计消耗 Token</span></div>
+            <div class="viz-stat-value" id="pt-stat-tokens">0</div>
+            <div class="text-small text-muted">项目累计（含缓存输入）</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pt-legend text-small" id="pt-legend" aria-label="分类图例"></div>
+    <div id="pt-priority" class="pt-priority pt-panel"></div>
+    <div class="pt-chart pt-panel">
+      <span class="pt-sec-head text-small"><i data-lucide="chart-column" aria-hidden="true"></i>Token 月度消耗</span>
+      <div class="pt-chart-bars" id="pt-chart-bars"></div>
+      <div class="text-small text-muted" id="pt-chart-note"></div>
+    </div>
+    <div class="pt-filters">
+      <div class="pt-filter-group" role="group" aria-label="按状态筛选">
+        <button type="button" class="pt-filter" data-status="all" aria-pressed="true">全部</button>
+        <button type="button" class="pt-filter" data-status="doing" aria-pressed="false">进行中</button>
+        <button type="button" class="pt-filter" data-status="done" aria-pressed="false">已完成</button>
+      </div>
+      <select id="pt-filter-cat" class="form-select pt-filter-select" aria-label="按分类筛选"></select>
+      <select id="pt-filter-month" class="form-select pt-filter-select" aria-label="按月份筛选"></select>
+    </div>
+    <div id="pt-timeline" role="list" aria-label="项目时间线"></div>
+    <div id="pt-detail" class="pt-panel" aria-live="polite"></div>
+  </div>
+  <div id="pt-view-topics" hidden></div>
+  <div id="pt-toast" class="pt-toast" hidden></div>
+  <div class="pt-tabs-wrap">
+    <div class="pt-tabs" role="tablist" aria-label="视图切换">
+      <button type="button" class="pt-tab" data-view="board" aria-selected="true" aria-label="项目总览"><i data-lucide="layout-dashboard" aria-hidden="true"></i><span>项目总览</span></button>
+      <button type="button" class="pt-tab" data-view="topics" aria-selected="false" aria-label="创作选题"><i data-lucide="lightbulb" aria-hidden="true"></i><span>创作选题</span></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const $ = (s, r) => (r || document).querySelector(s);
+  const PALETTE = ['#339CFF', '#924FF7', '#F2711C', '#2FBF71', '#F2B705', '#E5484D'];
+  const STATUS = {
+    done: { label: '已完成', color: '#2FBF71' },
+    doing: { label: '进行中', color: '#F2B705' },
+    todo: { label: '待启动', color: '#339CFF' },
+    hold: { label: '搁置', color: '#F2711C' }
+  };
+  const PRI = { high: { label: '高优先', color: '#F2711C' }, mid: { label: '中优先', color: '#F2B705' }, low: { label: '低优先', color: '#8A93A6' } };
+  const SAMPLE = {
+    templateVersion: '1.2',
+    updated: '示例',
+    updatedAt: '2026-08-06T00:00:00+08:00',
+    pageTitle: 'Agent本地项目管理',
+    subtitle: '示例数据 · 把 data.json 替换为本地 Agent 扫描结果即可',
+    months: ['5月', '6月', '7月', '8月'],
+    archivedTokens: 0,
+    projects: [
+      {
+        id: 'p1', name: '示例项目 A', date: '2026-06-01', month: 1, cat: '示例分类', conv: 1,
+        status: 'doing', progress: 40, tokens: 1200000, updated: '2026-06-01', review: 'agent_draft',
+        intro: '在这里填写项目介绍：这个对话做了什么、产出是什么、当前卡在哪里。',
+        milestones: [
+          { date: '06-01', text: '示例里程碑：已完成的事项', done: true },
+          { date: '待定', text: '示例里程碑：进行中的事项', done: false }
+        ],
+        next: [{ text: '示例推进建议：下一步要做什么', p: 'high' }],
+        criteria: [{ done: false, text: '示例完成标准：做到什么样才算 100%' }],
+        files: ['示例产出文件路径'], dir: '示例产出目录'
+      }
+    ],
+    current: null,
+    empty: [],
+    topics: [
+      { title: '示例创作选题', type: '短视频 · 示例', desc: '选题一句话描述', project: '关联项目', plan: ['定位：…', '大纲：…', '发布：…', '参考素材：链接', '结合：…'] }
+    ],
+    news: [{ date: '08-06', source: '示例来源', title: '示例 AI 新闻标题', url: 'https://example.com' }]
+  };
+
+  const root = $('#codex-project-board');
+  const timeline = $('#pt-timeline');
+  const detail = $('#pt-detail');
+  const boardView = $('#pt-view-board');
+  const SAVE_KEY = 'pt-template-v2';
+  const EMPTY_KEY = 'pt-template-empty-v1';
+  let DATA = null;
+  let catColors = {};
+  const deletedEmpty = new Set();
+  const priorityDone = new Set();
+  const filterState = { status: 'all', cat: 'all', month: 'all' };
+  let selectedId = null;
+  let toastTimer = null;
+
+  function fmtTokens(n) {
+    if (n >= 1e8) return (n / 1e8).toFixed(2).replace(/\.?0+$/, '') + ' 亿';
+    if (n >= 1e4) return (n / 1e4).toFixed(0) + ' 万';
+    return String(n);
+  }
+
+  function loadSaved() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      const savedAt = saved.savedAt ? new Date(saved.savedAt) : null;
+      const dataAt = DATA.updatedAt ? new Date(DATA.updatedAt) : null;
+      if (dataAt && savedAt && savedAt < dataAt) return;
+      const map = new Map((saved.items || []).map(s => [s.id, s]));
+      const all = [...(DATA.projects || []), DATA.current].filter(Boolean);
+      all.forEach(p => {
+        const s = map.get(p.id);
+        if (s) { p.status = s.status; p.progress = s.progress; }
+      });
+    } catch (e) {}
+    try { JSON.parse(localStorage.getItem(EMPTY_KEY) || '[]').forEach(id => deletedEmpty.add(id)); } catch (e) {}
+    try { JSON.parse(localStorage.getItem('pt-template-priority-v1') || '[]').forEach(id => priorityDone.add(id)); } catch (e) {}
+  }
+
+  function saveState() {
+    try {
+      const all = [...(DATA.projects || []), DATA.current].filter(Boolean);
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ savedAt: new Date().toISOString(), items: all.map(p => ({ id: p.id, status: p.status, progress: p.progress })) }));
+    } catch (e) {}
+  }
+
+  function showToast(msg) {
+    const t = $('#pt-toast');
+    if (!t) return;
+    t.innerHTML = `<span>${msg}</span>`;
+    t.hidden = false;
+    requestAnimationFrame(() => t.classList.add('show'));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.classList.remove('show'); setTimeout(() => { t.hidden = true; }, 260); }, 2600);
+  }
+
+  function showToastAction(msg, actionLabel, onAction) {
+    const t = $('#pt-toast');
+    if (!t) return;
+    t.innerHTML = `<span>${msg}</span><button type="button" id="pt-toast-undo">${actionLabel}</button>`;
+    t.hidden = false;
+    requestAnimationFrame(() => t.classList.add('show'));
+    clearTimeout(toastTimer);
+    const done = () => { t.classList.remove('show'); setTimeout(() => { t.hidden = true; }, 260); };
+    toastTimer = setTimeout(done, 6000);
+    const btn = $('#pt-toast-undo', t);
+    if (btn) btn.addEventListener('click', () => { clearTimeout(toastTimer); onAction(); done(); });
+  }
+
+  function allProjects() {
+    return [...(DATA.projects || []), DATA.current].filter(Boolean);
+  }
+
+  function staleTag(p) {
+    return p.updated ? `<span class="pt-stale-tag text-small">更新于 ${p.updated}</span>` : '';
+  }
+
+  function renderStats() {
+    const all = allProjects();
+    $('#pt-stat-done').textContent = all.filter(p => p.status === 'done').length;
+    $('#pt-stat-doing').textContent = all.filter(p => p.status === 'doing').length;
+    $('#pt-stat-empty').textContent = DATA.empty ? DATA.empty.length : 0;
+    $('#pt-stat-empty-sub').textContent = `已归档会话 ≈ ${fmtTokens(DATA.archivedTokens || 0)} Tokens`;
+    $('#pt-stat-tokens').textContent = '≈ ' + fmtTokens(all.reduce((s, p) => s + (p.tokens || 0), 0) + (DATA.archivedTokens || 0));
+    if (DATA.current) $('#pt-stat-doing-sub').textContent = '另有当前项目 1 个';
+  }
+
+  function renderLegend() {
+    const wrap = $('#pt-legend');
+    if (!wrap) return;
+    const cats = [...new Set(allProjects().map(p => p.cat).filter(Boolean))];
+    wrap.innerHTML = cats.map(c => `<span class="sw"><span class="sw-dot" style="background:${catColors[c]}"></span>${c}</span>`).join('') +
+      (DATA.empty && DATA.empty.length ? `<span class="sw"><span class="sw-dash"></span>空对话</span>` : '');
+  }
+
+  function renderPriority() {
+    const wrap = $('#pt-priority');
+    if (!wrap) return;
+    const items = [];
+    allProjects().forEach(p => (p.next || []).forEach((n, i) => items.push({ p, n, key: p.id + ':' + i, w: PRI[n.p] ? (n.p === 'high' ? 2 : n.p === 'mid' ? 1 : 0) : 0 })));
+    items.sort((a, b) => b.w - a.w);
+    const top = items.slice(0, 5);
+    if (!top.length) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = `<span class="pt-sec-head text-small"><i data-lucide="zap" aria-hidden="true"></i>本周优先推进</span><ul class="pt-priority-list">${top.map(({ p, n, key }) => {
+      const done = priorityDone.has(key);
+      const color = PRI[n.p] ? PRI[n.p].color : '#8A93A6';
+      return `<li><label class="pt-priority-check${done ? ' is-done' : ''}"><input type="checkbox" data-key="${key}"${done ? ' checked' : ''}><span class="pt-priority-name text-small">${p.name}</span><span class="pt-priority-action text-small">${n.text}</span><span class="pt-pri text-small" style="color:${color};background:color-mix(in srgb, ${color} 14%, transparent)">${PRI[n.p] ? PRI[n.p].label : n.p}</span></label></li>`;
+    }).join('')}</ul>`;
+    wrap.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', () => {
+      const key = cb.dataset.key;
+      if (cb.checked) priorityDone.add(key); else priorityDone.delete(key);
+      try { localStorage.setItem('pt-template-priority-v1', JSON.stringify([...priorityDone])); } catch (e) {}
+      renderPriority();
+    }));
+    if (window.lucide) window.lucide.createIcons({ attrs: { width: 16, height: 16 } });
+  }
+
+  function renderChart() {
+    const wrap = $('#pt-chart-bars');
+    if (!wrap) return;
+    const totals = (DATA.months || []).map((m, i) => allProjects().filter(p => p.month === i).reduce((s, p) => s + (p.tokens || 0), 0));
+    const max = Math.max(...totals, 1);
+    wrap.innerHTML = totals.map((t, i) => {
+      const h = Math.max(2, Math.round((t / max) * 100));
+      return `<div class="pt-chart-bar"><span class="pt-chart-val text-small">${fmtTokens(t)}</span><span class="pt-chart-fill" style="height:${h}%"></span><span class="pt-chart-label text-small">${DATA.months[i]}</span></div>`;
+    }).join('');
+    $('#pt-chart-note').textContent = `更新于 ${DATA.updated || '实时'} · 按项目累计（含缓存输入）`;
+  }
+
+  function renderTimeline() {
+    let hasAny = false;
+    const monthHtml = (DATA.months || []).map((m, mi) => {
+      if (filterState.month !== 'all' && mi !== Number(filterState.month)) return '';
+      const items = [];
+      (DATA.projects || []).filter(p => p.month === mi && (filterState.status === 'all' || p.status === filterState.status) && (filterState.cat === 'all' || p.cat === filterState.cat)).sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0) || (a.progress || 0) - (b.progress || 0)).forEach(p => {
+        const c = catColors[p.cat];
+        items.push(`<button type="button" class="pt-tile" data-id="${p.id}" aria-pressed="false" style="--cat:${c};--fill:${STATUS[p.status].color}">
+          <span class="pt-name-row"><span class="pt-status-dot" style="background:${STATUS[p.status].color}"></span><span class="pt-name">${p.name}</span></span>
+          <span class="pt-tags"><span class="pt-cat-tag text-small">${p.cat}</span><span class="pt-status-pill text-small" style="color:${STATUS[p.status].color};background:color-mix(in srgb, ${STATUS[p.status].color} 13%, transparent)">${STATUS[p.status].label}</span>${staleTag(p)}</span>
+          <span class="pt-next text-small">下一步：${(p.next && p.next[0] && p.next[0].text) || '—'}</span>
+          <span class="pt-bar-row"><span class="pt-bar"><span class="pt-bar-fill" style="width:${p.progress}%"></span></span><span class="pt-pct text-small">${p.progress}%</span></span>
+        </button>`);
+      });
+      if (DATA.current && DATA.current.month === mi) {
+        const p = DATA.current;
+        items.push(`<button type="button" class="pt-tile" data-id="now" aria-pressed="false" style="--cat:${catColors[p.cat] || '#339CFF'};--fill:${STATUS[p.status].color}">
+          <span class="pt-name-row"><span class="pt-status-dot" style="background:${STATUS[p.status].color}"></span><span class="pt-name">${p.name}</span></span>
+          <span class="pt-tags"><span class="pt-cat-tag text-small">${p.cat}</span><span class="pt-status-pill text-small" style="color:${STATUS[p.status].color};background:color-mix(in srgb, ${STATUS[p.status].color} 13%, transparent)">${STATUS[p.status].label}</span>${staleTag(p)}</span>
+          <span class="pt-next text-small">下一步：${(p.next && p.next[0] && p.next[0].text) || '—'}</span>
+          <span class="pt-bar-row"><span class="pt-bar"><span class="pt-bar-fill" style="width:${p.progress}%"></span></span><span class="pt-pct text-small">${p.progress}%</span></span>
+        </button>`);
+      }
+      (DATA.empty || []).filter(e => e.month === mi && !deletedEmpty.has(e.id)).forEach(e => {
+        hasAny = true;
+        items.push(`<div class="pt-chip" data-id="${e.id}" style="--cat:var(--orange)">
+          <button type="button" class="pt-chip-main" data-id="${e.id}" aria-pressed="false"><span class="pt-name">${e.label} ×${e.count}</span><span class="text-small">空对话 · 无产出</span></button>
+          <button type="button" class="pt-chip-del" data-del="${e.id}" aria-label="删除 ${e.label}"><i data-lucide="x" aria-hidden="true"></i></button>
+        </div>`);
+      });
+      if (items.length) hasAny = true;
+      return `<div class="pt-month" role="listitem">
+        <div class="pt-month-label"><span class="pt-month-pill">${m}</span><span class="pt-month-count text-small">${items.length} 项</span></div>
+        <div class="pt-month-items">${items.length ? items.join('') : '<span class="text-small text-muted">—</span>'}</div>
+      </div>`;
+    }).join('');
+    timeline.innerHTML = hasAny ? monthHtml : onboardHtml();
+    timeline.querySelectorAll('.pt-tile, .pt-chip-main').forEach(btn => btn.addEventListener('click', () => select(btn.dataset.id)));
+    timeline.querySelectorAll('.pt-chip-del').forEach(btn => btn.addEventListener('click', () => removeEmpty(btn.dataset.del)));
+    if (window.lucide) window.lucide.createIcons({ attrs: { width: 16, height: 16 } });
+  }
+
+  function onboardHtml() {
+    return `<div class="pt-panel pt-onboard">
+      <div class="pt-hero-title">从零开始搭建你的面板</div>
+      <div class="text-small text-muted">页面数据全部来自 data.json，由本地 Agent 扫描对话目录后填写</div>
+      <div class="pt-onboard-steps">
+        <div class="pt-onboard-step"><b>1 · 准备数据文件</b><span class="text-small">把 data.example.json 复制为 data.json</span></div>
+        <div class="pt-onboard-step"><b>2 · Agent 填写</b><span class="text-small">扫描对话目录，按 README 的 schema 填写项目、里程碑、选题与新闻</span></div>
+        <div class="pt-onboard-step"><b>3 · 本地预览</b><span class="text-small">目录下运行 python3 -m http.server 8000，访问 localhost:8000</span></div>
+      </div>
+    </div>`;
+  }
+
+  function findProject(id) {
+    if (id === 'now') return DATA.current;
+    return (DATA.projects || []).find(p => p.id === id);
+  }
+
+  function select(id) {
+    if (selectedId === id) {
+      selectedId = null;
+      timeline.querySelectorAll('.pt-tile, .pt-chip-main').forEach(b => b.setAttribute('aria-pressed', 'false'));
+      timeline.querySelectorAll('.pt-chip').forEach(w => w.classList.remove('is-open'));
+      closeDetail();
+      return;
+    }
+    selectedId = id;
+    timeline.querySelectorAll('.pt-tile, .pt-chip-main').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
+    timeline.querySelectorAll('.pt-chip').forEach(w => w.classList.toggle('is-open', w.dataset.id === id));
+    const p = findProject(id);
+    if (p) renderProjectDetail(p);
+    else if ((DATA.empty || []).find(e => e.id === id)) renderEmpty((DATA.empty).find(e => e.id === id));
+    else renderHint();
+    placeDetail(id);
+  }
+
+  function placeDetail(id) {
+    const btn = timeline.querySelector('button[data-id="' + id + '"]');
+    if (!btn) return;
+    const host = btn.closest('.pt-month-items');
+    if (!host) return;
+    const start = btn.classList.contains('pt-chip-main') ? btn.parentElement : btn;
+    const anchor = lastInRow(host, start);
+    detail.classList.add('pt-inline');
+    anchor.insertAdjacentElement('afterend', detail);
+  }
+
+  function lastInRow(host, start) {
+    const top = start.getBoundingClientRect().top;
+    let last = start;
+    host.querySelectorAll('.pt-tile, .pt-chip').forEach(el => { if (Math.abs(el.getBoundingClientRect().top - top) < 2) last = el; });
+    return last;
+  }
+
+  function closeDetail() {
+    if (boardView) boardView.appendChild(detail);
+    detail.classList.remove('pt-inline');
+    renderHint();
+  }
+
+  function renderProjectDetail(p) {
+    const cr = (p.criteria || []).map(c => `<li class="pt-cr${c.done ? ' is-done' : ''}"><span>${c.done ? '✅' : '⬜'}</span><span class="pt-cr-text">${c.text}</span></li>`).join('');
+    const ms = (p.milestones || []).map(m => `<li class="pt-ms${m.done ? ' is-done' : ''}"><span class="pt-ms-dot"></span><span class="pt-ms-date text-small">${m.date}</span><span>${m.text}</span></li>`).join('');
+    const nx = (p.next || []).map(n => `<li class="pt-nx"><span class="pt-nx-dot" style="background:${PRI[n.p] ? PRI[n.p].color : '#8A93A6'}"></span><span>${n.text}</span><span class="pt-pri text-small" style="color:${PRI[n.p] ? PRI[n.p].color : '#8A93A6'};background:color-mix(in srgb, ${PRI[n.p] ? PRI[n.p].color : '#8A93A6'} 14%, transparent)">${PRI[n.p] ? PRI[n.p].label : n.p}</span></li>`).join('');
+    const files = (p.files || []).map(f => `<li>${f}</li>`).join('');
+    detail.innerHTML = `<div class="pt-detail">
+      <div class="pt-detail-head">
+        <div class="pt-detail-title">${p.name}</div>
+        <div class="pt-meta-line"><span class="pt-tag text-small">${p.date}</span><span class="pt-tag text-small">${p.cat}</span><span class="pt-tag text-small">${p.conv || 0} 个对话</span><span class="pt-tag text-small">≈ ${fmtTokens(p.tokens || 0)} Tokens</span>${p.review ? `<span class="pt-tag text-small">${p.review === 'user_confirmed' ? '✓ 完成标准已确认' : '⏳ 完成标准待确认'}</span>` : ''}</div>
+      </div>
+      <div class="pt-grid2">
+        <div class="pt-col">
+          <div class="pt-section"><span class="pt-sec-head text-small"><i data-lucide="info" aria-hidden="true"></i>项目介绍</span><p class="pt-intro">${p.intro || '—'}</p></div>
+          <div class="pt-section"><span class="pt-sec-head text-small"><i data-lucide="target" aria-hidden="true"></i>完成标准 · 100% 的定义</span><ul class="pt-cr-list">${cr}</ul></div>
+          <div class="pt-section"><span class="pt-sec-head text-small"><i data-lucide="file-text" aria-hidden="true"></i>产出文件</span><ul class="pt-files">${files}</ul><span class="text-small text-muted">目录：${p.dir || '—'}</span></div>
+        </div>
+        <div class="pt-col">
+          <div class="pt-section"><span class="pt-sec-head text-small"><i data-lucide="git-branch" aria-hidden="true"></i>项目时间线</span><ul class="pt-ms-list">${ms}</ul></div>
+          <div class="pt-section"><span class="pt-sec-head text-small"><i data-lucide="trending-up" aria-hidden="true"></i>项目推进建议</span><ul class="pt-nx-list">${nx}</ul></div>
+          <div class="pt-section"><span class="pt-sec-head text-small"><i data-lucide="settings-2" aria-hidden="true"></i>快速调整</span>
+            <div class="pt-controls">
+              <div class="pt-field"><label class="text-small" for="pt-status">状态</label><select id="pt-status" class="form-select"><option value="done">已完成</option><option value="doing">进行中</option><option value="todo">待启动</option><option value="hold">搁置</option></select></div>
+              <div class="pt-field pt-range"><label class="text-small" for="pt-progress">完成度 <span id="pt-progress-val">${p.progress}%</span></label><input type="range" id="pt-progress" class="form-range" min="0" max="100" value="${p.progress}"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    bindEdits(p);
+    if (window.lucide) window.lucide.createIcons({ attrs: { width: 16, height: 16 } });
+  }
+
+  function renderEmpty(e) {
+    detail.innerHTML = `<div class="pt-detail">
+      <div class="pt-detail-head"><div class="pt-detail-title">${e.date} · ${e.count} 个空对话</div><div class="pt-meta-line"><span class="pt-tag text-small">空对话</span><span class="text-small">${e.note || ''}</span></div></div>
+      <div class="pt-section"><span class="pt-sec-head text-small"><i data-lucide="info" aria-hidden="true"></i>说明</span><p class="pt-intro">这些对话没有留下任何产出文件，是进度视图混乱的主要来源，按严格标准不构成项目。</p></div>
+      <div class="pt-section"><span class="pt-sec-head text-small"><i data-lucide="archive" aria-hidden="true"></i>推进建议</span><ul class="pt-nx-list"><li class="pt-nx"><span class="pt-nx-dot" style="background:${PRI.high.color}"></span><span>归档：无产出的对话不应计入项目进度</span></li></ul></div>
+    </div>`;
+    if (window.lucide) window.lucide.createIcons({ attrs: { width: 16, height: 16 } });
+  }
+
+  function renderHint() {
+    detail.innerHTML = `<div class="pt-detail"><div class="pt-detail-title">点击上方任一卡片查看详情</div><div class="text-small text-muted">每个项目包含介绍、时间线、推进建议与完成标准；状态和完成度可直接修改，自动保存</div></div>`;
+  }
+
+  function bindEdits(p) {
+    const statusSel = $('#pt-status', detail);
+    const prog = $('#pt-progress', detail);
+    const progVal = $('#pt-progress-val', detail);
+    if (statusSel) {
+      statusSel.value = p.status;
+      statusSel.addEventListener('change', () => {
+        p.status = statusSel.value;
+        saveState(); renderStats(); renderTimeline(); renderPriority();
+        showToast('✅ 状态已更新');
+      });
+    }
+    if (prog) {
+      prog.addEventListener('input', () => { p.progress = Number(prog.value); if (progVal) progVal.textContent = p.progress + '%'; });
+      prog.addEventListener('change', () => { saveState(); renderStats(); renderTimeline(); showToast('✅ 完成度已更新'); });
+    }
+  }
+
+  function removeEmpty(id) {
+    deletedEmpty.add(id);
+    try { localStorage.setItem(EMPTY_KEY, JSON.stringify([...deletedEmpty])); } catch (e) {}
+    if (selectedId === id) { selectedId = null; closeDetail(); }
+    renderTimeline(); renderStats();
+    showToastAction('🗑️ 已删除空对话标签', '撤销', () => {
+      deletedEmpty.delete(id);
+      try { localStorage.setItem(EMPTY_KEY, JSON.stringify([...deletedEmpty])); } catch (e) {}
+      renderTimeline(); renderStats();
+    });
+  }
+
+  function renderTopics() {
+    const wrap = $('#pt-view-topics');
+    if (!wrap) return;
+    const topics = DATA.topics || [];
+    const idx = Math.floor(Date.now() / 86400000) % Math.max(topics.length, 1);
+    const t = topics[idx];
+    wrap.innerHTML = `<div class="pt-topics-head">
+      <div class="pt-hero-title">创作选题参考</div>
+      <div class="text-small text-muted">结合项目与账号方向整理 ${topics.length} 个选题 + AI 新闻快讯（由 Agent 定期更新）</div>
+      <div class="pt-hero-accent" aria-hidden="true"></div>
+    </div>
+    ${t ? `<div class="pt-panel pt-inspire"><div class="pt-inspire-head"><span class="pt-sec-head text-small"><i data-lucide="dices" aria-hidden="true"></i>今日灵感<span class="pt-inspire-rotate text-small">每日轮换</span></span></div><div class="pt-inspire-title">${t.title}</div><div class="text-small">${t.type} · 关联：${t.project}</div><div class="text-small text-muted">${t.desc}</div></div>` : ''}
+    <div class="pt-topics-list">${topics.map((topic, i) => `<div class="pt-topic">
+      <div class="pt-topic-row"><span class="pt-topic-idx">${String(i + 1).padStart(2, '0')}</span><button type="button" class="pt-topic-toggle"><span class="pt-topic-title">${topic.title}</span></button><span class="pt-topic-type text-small">${topic.type}</span><span class="pt-topic-project text-small">${topic.project}</span></div>
+      <div class="pt-topic-desc text-small">${topic.desc}</div>
+      <div class="pt-topic-plan" hidden>${(topic.plan || []).map(s => `<div class="pt-topic-plan-row text-small">${s}</div>`).join('')}</div>
+    </div>`).join('')}</div>
+    <div id="pt-news-box"></div>`;
+    wrap.querySelectorAll('.pt-topic-toggle').forEach(btn => btn.addEventListener('click', () => {
+      const plan = btn.closest('.pt-topic').querySelector('.pt-topic-plan');
+      if (plan) plan.hidden = !plan.hidden;
+    }));
+    renderNews();
+    if (window.lucide) window.lucide.createIcons({ attrs: { width: 16, height: 16 } });
+  }
+
+  function renderNews() {
+    const box = $('#pt-news-box');
+    if (!box) return;
+    const items = (DATA.news || []).slice(0, 8);
+    if (!items.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="pt-panel pt-news"><span class="pt-sec-head text-small"><i data-lucide="newspaper" aria-hidden="true"></i>AI 新闻快讯 <span class="pt-news-updated text-small">由 Agent 更新于 ${DATA.updated || '—'}</span></span>
+      <ul class="pt-news-list">${items.map(n => `<li class="pt-news-item"><span class="pt-news-date text-small">${n.date}</span><a href="${n.url}" target="_blank" rel="noopener">${n.title}</a><span class="pt-news-source text-small">${n.source}</span></li>`).join('')}</ul>
+    </div>`;
+    if (window.lucide) window.lucide.createIcons({ attrs: { width: 16, height: 16 } });
+  }
+
+  function bindFilters() {
+    root.querySelectorAll('.pt-filter').forEach(btn => btn.addEventListener('click', () => {
+      filterState.status = btn.dataset.status;
+      root.querySelectorAll('.pt-filter').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+      applyFilterChange();
+    }));
+    $('#pt-filter-cat').addEventListener('change', e => { filterState.cat = e.target.value; applyFilterChange(); });
+    $('#pt-filter-month').addEventListener('change', e => { filterState.month = e.target.value; applyFilterChange(); });
+  }
+
+  function applyFilterChange() {
+    if (selectedId) { selectedId = null; closeDetail(); }
+    renderTimeline();
+  }
+
+  function switchView(v) {
+    const board = $('#pt-view-board');
+    const topics = $('#pt-view-topics');
+    board.hidden = v !== 'board';
+    topics.hidden = v !== 'topics';
+    root.querySelectorAll('.pt-tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === v)));
+  }
+
+  function exportData() {
+    try {
+      const data = JSON.parse(JSON.stringify(DATA));
+      data.exportedAt = new Date().toISOString();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'data.json'; a.click();
+      URL.revokeObjectURL(url);
+      showToast('✅ 已导出完整 data.json（可回填）');
+    } catch (e) { showToast('导出失败，请重试'); }
+  }
+
+  function setDataStatus(mode, data) {
+    const bar = $('#pt-data-status');
+    if (!bar) return;
+    const ver = data.templateVersion || '—';
+    if (mode === 'real') {
+      bar.className = 'pt-data-status ok';
+      bar.innerHTML = `<span class="dot"></span><span>数据源：data.json · 更新于 ${data.updated || '—'} · 模板 v${ver}</span><button type="button" class="pt-data-close" aria-label="关闭数据源提示">×</button>`;
+      try { if (localStorage.getItem('pt-data-status-hidden-v1') === '1') bar.hidden = true; } catch (e) {}
+      const btn = bar.querySelector('.pt-data-close');
+      if (btn) btn.addEventListener('click', () => {
+        bar.hidden = true;
+        try { localStorage.setItem('pt-data-status-hidden-v1', '1'); } catch (e) {}
+      });
+    } else {
+      bar.className = 'pt-data-status warn';
+      bar.innerHTML = `<span class="dot"></span><span>⚠ 当前显示示例数据：请将 data.example.json 复制为 data.json 并填写，或在目录下运行 python3 -m http.server 后访问</span>`;
+    }
+  }
+
+  function init(data, mode) {
+    DATA = data;
+    setDataStatus(mode || 'real', data);
+    const cats = [...new Set(allProjects().map(p => p.cat).filter(Boolean))];
+    cats.forEach((c, i) => { catColors[c] = PALETTE[i % PALETTE.length]; });
+    $('#pt-page-title').textContent = data.pageTitle || 'Agent本地项目管理';
+    $('#pt-page-sub').textContent = data.subtitle || '由本地 Agent 扫描对话目录自动生成';
+    const catSel = $('#pt-filter-cat');
+    catSel.innerHTML = '<option value="all">全部分类</option>' + cats.map(c => `<option>${c}</option>`).join('');
+    const monthSel = $('#pt-filter-month');
+    monthSel.innerHTML = '<option value="all">全部月份</option>' + (data.months || []).map((m, i) => `<option value="${i}">${m}</option>`).join('');
+    loadSaved();
+    renderStats(); renderLegend(); renderPriority(); renderChart(); renderTimeline(); renderTopics(); renderHint();
+  }
+
+  root.addEventListener('click', e => {
+    const tab = e.target.closest('.pt-tab');
+    if (tab) switchView(tab.dataset.view);
+  });
+  $('#pt-export').addEventListener('click', exportData);
+  bindFilters();
+
+  if (typeof fetch === 'function') {
+    fetch('data.json', { cache: 'no-store' })
+      .then(r => { if (!r.ok) throw new Error('bad'); return r.json(); })
+      .then(data => init(data, 'real'))
+      .catch(() => init(SAMPLE, 'sample'));
+  } else {
+    init(SAMPLE, 'sample');
+  }
+})();
+</script>
+<script async src="https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js"></script>
+<script>
+(function () {
+  const init = () => { if (window.lucide) window.lucide.createIcons({ attrs: { width: 16, height: 16 } }); };
+  if (window.lucide) { init(); return; }
+  document.querySelector('script[src*="lucide"]').addEventListener('load', init, { once: true });
+})();
+</script>
+</body>
+</html>

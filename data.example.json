@@ -1,0 +1,57 @@
+{
+  "templateVersion": "1.2",
+  "updated": "08-06",
+  "updatedAt": "2026-08-06T10:00:00+08:00",
+  "pageTitle": "Agent本地项目管理",
+  "subtitle": "由本地 Agent 扫描对话目录自动生成 · 数据实时更新",
+  "months": ["5月", "6月", "7月", "8月"],
+  "archivedTokens": 0,
+  "projects": [
+    {
+      "id": "p1",
+      "name": "示例项目 A",
+      "date": "2026-06-01",
+      "month": 1,
+      "cat": "示例分类",
+      "conv": 3,
+      "status": "doing",
+      "progress": 40,
+      "tokens": 1200000,
+      "updated": "2026-06-01",
+      "review": "agent_draft",
+      "intro": "在这里填写项目介绍：这些对话一起做了什么、产出了什么、当前卡在哪里。",
+      "milestones": [
+        { "date": "06-01", "text": "示例里程碑：已完成的事项", "done": true },
+        { "date": "待定", "text": "示例里程碑：进行中的事项", "done": false }
+      ],
+      "next": [
+        { "text": "示例推进建议：下一步要做什么", "p": "high" }
+      ],
+      "criteria": [
+        { "done": false, "text": "示例完成标准：做到什么样才算 100%" }
+      ],
+      "files": ["示例产出文件路径"],
+      "dir": "示例产出目录"
+    }
+  ],
+  "current": null,
+  "empty": [],
+  "topics": [
+    {
+      "title": "示例创作选题",
+      "type": "短视频 · 示例",
+      "desc": "选题一句话描述",
+      "project": "关联项目",
+      "plan": [
+        "定位：…",
+        "大纲：…",
+        "发布：…",
+        "参考素材：链接",
+        "结合：…"
+      ]
+    }
+  ],
+  "news": [
+    { "date": "08-06", "source": "示例来源", "title": "示例 AI 新闻标题", "url": "https://example.com" }
+  ]
+}
