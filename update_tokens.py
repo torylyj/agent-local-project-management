@@ -44,6 +44,16 @@ def session_total(path):
     return sum(last.get(k, 0) for k in keys)
 
 
+def month_key(path):
+    """从会话文件路径解析年份-月份，如 .../sessions/2026/08/05/... -> 2026-08"""
+    parts = path.parts
+    try:
+        i = parts.index("sessions")
+        return parts[i + 1] + "-" + parts[i + 2]
+    except Exception:
+        return None
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -62,6 +72,7 @@ def main():
 
     # 会话按 cwd 聚合
     groups = {}
+    monthly = {}
     for f in sessions_dir.rglob("*.jsonl"):
         cwd = None
         try:
@@ -80,6 +91,9 @@ def main():
         t = session_total(f)
         if t:
             groups[cwd] = groups.get(cwd, 0) + t
+            ym = month_key(Path(f))
+            if ym:
+                monthly[ym] = monthly.get(ym, 0) + t
 
     # 归属项目：会话 cwd 与项目 dir 互相包含即匹配
     per_project = {}
@@ -98,12 +112,32 @@ def main():
     # 回写源文件
     for pid, val in per_project.items():
         if pid == "now":
-            pat = re.compile(r"(const current = \{[^}]{0,4000}?tokens: )\d+", re.S)
+            pat = re.compile(r"(const current = \{[^}]{0,4000}?tokens: )(\d+|null)", re.S)
         else:
-            pat = re.compile(r"(\{ id: '" + re.escape(pid) + r"'[^}]{0,4000}?tokens: )\d+", re.S)
+            pat = re.compile(r"(\{ id: '" + re.escape(pid) + r"'[^}]{0,4000}?tokens: )(\d+|null)", re.S)
         src, n = pat.subn(lambda m: m.group(1) + str(val), src)
         if not n:
             print("WARN: 未能回写", pid)
+
+    # 回写月度用量（保留源文件已有的历史月份，仅更新有会话数据的月份）
+    mt_match = re.search(r"const MONTHLY_TOKENS = (\{[^}]*\})", src)
+    mt = {}
+    if mt_match:
+        for k, v in re.findall(r"'([\d-]+)':\s*(\d+)", mt_match.group(1)):
+            mt[k] = int(v)
+    for ym, val in monthly.items():
+        mt[ym] = val
+    if mt:
+        body = ", ".join("'%s': %d" % (k, mt[k]) for k in sorted(mt))
+        src, n = re.subn(
+            r"const MONTHLY_TOKENS = \{[^}]*\}",
+            "const MONTHLY_TOKENS = { " + body + " }",
+            src,
+        )
+        if n:
+            print("月度回写：")
+            for k in sorted(mt):
+                print("  %s: %d" % (k, mt[k]))
 
     src_path.write_text(src, encoding="utf-8")
     print("回写完成：")

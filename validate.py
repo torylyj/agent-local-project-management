@@ -13,7 +13,7 @@ import re
 import sys
 from pathlib import Path
 
-STATUSES = {"done", "doing", "todo", "hold"}
+STATUSES = {"done", "doing", "todo", "hold", "blocked"}
 PRIS = {"high", "mid", "low"}
 REVIEWS = {"agent_draft", "user_confirmed"}
 
@@ -41,7 +41,7 @@ def check_project(pr, tag, months, seen):
         err(f"{tag} id 重复：{pr.get('id')}")
     seen.add(pr.get("id"))
     if pr.get("status") not in STATUSES:
-        err(f"{tag} status 无效：{pr.get('status')}（应为 done/doing/todo/hold）")
+        err(f"{tag} status 无效：{pr.get('status')}（应为 done/doing/todo/hold/blocked）")
     if not isinstance(pr.get("progress"), (int, float)) or not (0 <= pr["progress"] <= 100):
         err(f"{tag} progress 必须是 0-100 的数字")
     if not isinstance(pr.get("tokens"), (int, float)):
