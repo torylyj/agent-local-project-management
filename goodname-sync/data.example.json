@@ -8,6 +8,8 @@
     "status": "todo(待启动) / doing(进行中) / blocked(阻塞) / hold(搁置) / done(已完成)。",
     "urgency": "0(普通) / 1(紧急) / 2(非常紧急)。",
     "intro": "项目简介必须 20 字以上，说明这个项目做什么、当前做到哪一步。"
+    ,
+    "workbuddy": "WorkBuddy 会话项目：status 按最近活动自动推导（14 天内 doing，否则 hold）；Token/里程碑/下一步建议/产出文件由同步工具自动生成；完成标准与决策日志建议由 AI 依据会话内容补全——每个会话补 2-3 条可验收的 criteria、1-2 条 decisions（含 date/title/reason）。"
   },
   "projects": [
     {

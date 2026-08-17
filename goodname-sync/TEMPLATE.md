@@ -28,6 +28,15 @@
 
 上传前可用工具自检：`node .../goodname-sync.js --file data.json --dry-run --verbose`，缺失里程碑/下一步/完成标准的项目会打印 ⚠ 提示。
 
+### WorkBuddy / Agent 会话项目说明
+
+同步工具会自动为 WorkBuddy 会话生成：`status`（按最近活动 14 天判断 doing/hold）、`tokens`（按 traces 聚合）、`milestones`（每次会话执行为一个已完成的里程碑）、`next`（按会话目标与是否停滞生成）、`files`（按 artifact-index 归属的真实产出文件）。
+
+工具无法自动生成的只有两项，建议由 AI 依据会话内容补全：
+
+- `criteria`（完成标准）：每个会话补 2-3 条可验收的标准；
+- `decisions`（决策日志）：每个会话补 1-2 条 `{date, title, reason, tags:[]}`。
+
 ## projects（项目数组）
 
 | 字段 | 必填 | 说明 |

@@ -249,7 +249,11 @@ function runCompletenessCheck(payload) {
   (payload.projects || []).forEach(p => {
     const pp = (p && p.payload && typeof p.payload === 'object') ? p.payload : {};
     const name = p.name || pp.name || '未命名项目';
-    if ((pp.source || 'codex') === 'workbuddy') return; // WorkBuddy 会话按设计可缺省
+    if ((pp.source || 'codex') === 'workbuddy') {
+      if (!Array.isArray(pp.criteria) || !pp.criteria.length) issues.push('· ' + name + '：完成标准建议由 AI 依据会话补全（参考 TEMPLATE.md）');
+      if (!Array.isArray(pp.decisions) || !pp.decisions.length) issues.push('· ' + name + '：决策日志建议由 AI 依据会话补全');
+      return;
+    }
     if (!name || String(name).trim().length < 2) issues.push('· ' + name + '：项目名称为空或过短');
     if (!pp.intro || String(pp.intro).trim().length < 20) issues.push('· ' + name + '：简介过短（建议 ≥20 字，说明做什么/当前进度）');
     if (!statusOk.includes(pp.status)) issues.push('· ' + name + '：status 取值无效「' + (pp.status || '空') + '」（应为 todo/doing/blocked/hold/done）');
