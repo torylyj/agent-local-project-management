@@ -1,4 +1,4 @@
-import { findDataFile, findWorkBuddyProjects, mergeAgentProjects } from './scanner.js';
+import { findDataFile, findWorkBuddyProjects, mergeAgentProjects, applyMergeHistory } from './scanner.js';
 import { parseDataFile, buildUploadPayload } from './parser.js';
 import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken } from './uploader.js';
 import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
@@ -134,7 +134,8 @@ export async function syncAction(source, options) {
     }
     const agentProjects = findWorkBuddyProjects(options.verbose);
     const allProjects = mergeAgentProjects(panelProjects, agentProjects, cloudDeletedKeys);
-    const payload = buildUploadPayload({ projects: allProjects, topics, monthly });
+    const mergedProjects = applyMergeHistory(allProjects);
+    const payload = buildUploadPayload({ projects: mergedProjects, topics, monthly });
     const totalTokens = payload.projects.reduce((s, p) => s + (p.tokens_used || 0), 0);
 
     // 完整性自检：字段齐全性 / 取值合法性 / 格式

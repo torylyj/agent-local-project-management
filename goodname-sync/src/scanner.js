@@ -196,3 +196,54 @@ export function mergeAgentProjects(panelProjects, agentProjects, extraDeleted) {
   }
   return out;
 }
+
+// 合并历史：~/.goodname/merges.json（网页合并时由 hook 记录），供扫描时重新应用
+export function loadMergeHistory() {
+  try {
+    const p = path.join(os.homedir(), '.goodname', 'merges.json');
+    const arr = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function uniqArr(arr, keyFn) {
+  const seen = new Set();
+  return (arr || []).filter(x => {
+    const k = keyFn(x);
+    if (k == null || k === '' || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+// 把被合并项目的数据并进保留项目，并跳过被合并项目的重新生成
+export function applyMergeHistory(list) {
+  const merges = loadMergeHistory();
+  if (!merges.length || !Array.isArray(list)) return list;
+  const removedKeys = new Set(
+    merges.filter(m => m && m.removeName).map(m => m.removeName + '::' + (m.removeSource || 'codex'))
+  );
+  const out = [];
+  for (const p of list) {
+    const key = (p.name || '') + '::' + (p.source || 'codex');
+    if (removedKeys.has(key)) continue; // 被合并项目不再单独出现
+    for (const m of merges) {
+      if (!m || m.keepName !== p.name || (m.keepSource || 'codex') !== (p.source || 'codex')) continue;
+      const r = (m.removePayload && typeof m.removePayload === 'object') ? m.removePayload : {};
+      p.milestones = uniqArr([...(p.milestones || []), ...(r.milestones || [])], x => (x && x.text) || '');
+      p.next = uniqArr([...(p.next || []), ...(r.next || [])], x => (x && x.text) || '');
+      p.criteria = uniqArr([...(p.criteria || []), ...(r.criteria || [])], x => (x && x.text) || '');
+      p.files = uniqArr([...(p.files || []), ...(r.files || [])], f => String(f || ''));
+      p.topics = uniqArr([...(p.topics || []), ...(r.topics || [])], t => String(t || ''));
+      p.decisions = uniqArr([...(p.decisions || []), ...(r.decisions || [])], x => (x && (x.title || x.decision)) || '');
+      p.tokens = Number(p.tokens || 0) + Number(r.tokens || 0);
+      p.conv = Number(p.conv || 0) + Number(r.conv || 0);
+      if (String(p.updated || '').localeCompare(String(r.updated || '')) < 0) p.updated = r.updated || p.updated;
+      p.urgency = Math.max(Number(p.urgency || 0), Number(r.urgency || 0));
+    }
+    out.push(p);
+  }
+  return out;
+}
