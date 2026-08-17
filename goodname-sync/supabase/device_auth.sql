@@ -1,11 +1,9 @@
 -- ============================================================
--- 设备授权（无 API Key）：一次性安装码 → 短期设备令牌
--- 在 Supabase SQL Editor 整段执行一次即可。
--- 流程：
---   1) 用户在面板点「生成安装码」→ create_device_code()（10 分钟有效，一次性）
---   2) 工具运行 --setup <码> → exchange_device_code() 换设备令牌（30 天）
---   3) 工具用设备令牌上传 → upsert_*_token()（不经过 sync_key）
+-- 设备授权（无 API Key）：一次性安装码 -> 短期设备令牌
+-- 在 Supabase SQL Editor 整段执行（可重复执行，幂等）。
 -- ============================================================
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS public.device_codes (
   code_hash TEXT PRIMARY KEY,
@@ -40,9 +38,12 @@ DROP POLICY IF EXISTS "吊销自己的设备令牌" ON public.device_tokens;
 CREATE POLICY "吊销自己的设备令牌" ON public.device_tokens
   FOR UPDATE USING (auth.uid() = user_id);
 
--- 辅助：由设备令牌解析用户（同时更新 last_used_at）
-CREATE OR REPLACE FUNCTION resolve_token_user(p_token TEXT)
-RETURNS UUID AS $$
+CREATE OR REPLACE FUNCTION public.resolve_token_user(p_token TEXT)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $fn$
 DECLARE
   v_user_id UUID;
 BEGIN
@@ -58,13 +59,16 @@ BEGIN
   END IF;
   RETURN v_user_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
+$fn$;
 
-GRANT EXECUTE ON FUNCTION resolve_token_user(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.resolve_token_user(TEXT) TO anon, authenticated;
 
--- 生成一次性安装码（登录用户在面板调用）
-CREATE OR REPLACE FUNCTION create_device_code()
-RETURNS TEXT AS $$
+CREATE OR REPLACE FUNCTION public.create_device_code()
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $fn$
 DECLARE
   v_code TEXT;
   v_chars TEXT := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -85,13 +89,16 @@ BEGIN
   VALUES (v_hash, auth.uid(), now() + interval '10 minutes');
   RETURN v_code;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
+$fn$;
 
-GRANT EXECUTE ON FUNCTION create_device_code() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_device_code() TO authenticated;
 
--- 用安装码换取设备令牌（工具调用，anon 可执行）
-CREATE OR REPLACE FUNCTION exchange_device_code(p_code TEXT)
-RETURNS TEXT AS $$
+CREATE OR REPLACE FUNCTION public.exchange_device_code(p_code TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $fn$
 DECLARE
   v_code_hash TEXT;
   v_user_id UUID;
@@ -122,13 +129,16 @@ BEGIN
   WHERE code_hash = v_code_hash;
   RETURN v_token;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
+$fn$;
 
-GRANT EXECUTE ON FUNCTION exchange_device_code(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.exchange_device_code(TEXT) TO anon, authenticated;
 
--- 列出当前账号的设备令牌（面板展示，可吊销）
-CREATE OR REPLACE FUNCTION list_device_tokens()
-RETURNS TABLE(token_id TEXT, label TEXT, created_at TIMESTAMPTZ, expires_at TIMESTAMPTZ, last_used_at TIMESTAMPTZ, revoked BOOLEAN) AS $$
+CREATE OR REPLACE FUNCTION public.list_device_tokens()
+RETURNS TABLE(token_id TEXT, label TEXT, created_at TIMESTAMPTZ, expires_at TIMESTAMPTZ, last_used_at TIMESTAMPTZ, revoked BOOLEAN)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $fn$
 BEGIN
   RETURN QUERY
   SELECT
@@ -142,26 +152,31 @@ BEGIN
   WHERE user_id = auth.uid()
   ORDER BY created_at DESC;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
+$fn$;
 
-GRANT EXECUTE ON FUNCTION list_device_tokens() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.list_device_tokens() TO authenticated;
 
--- 吊销设备令牌（面板调用）
-CREATE OR REPLACE FUNCTION revoke_device_token(p_token_id TEXT)
-RETURNS VOID AS $$
+CREATE OR REPLACE FUNCTION public.revoke_device_token(p_token_id TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $fn$
 BEGIN
   UPDATE public.device_tokens
   SET revoked = TRUE
   WHERE left(token_hash, 10) = p_token_id AND user_id = auth.uid();
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
+$fn$;
 
-GRANT EXECUTE ON FUNCTION revoke_device_token(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.revoke_device_token(TEXT) TO authenticated;
 
--- ============ 上传（设备令牌版，逻辑与 sync_key 版一致） ============
-
-CREATE OR REPLACE FUNCTION upsert_projects_token(p_token TEXT, v_projects JSONB)
-RETURNS TABLE(inserted_count BIGINT, updated_count BIGINT) AS $$
+CREATE OR REPLACE FUNCTION public.upsert_projects_token(p_token TEXT, v_projects JSONB)
+RETURNS TABLE(inserted_count BIGINT, updated_count BIGINT)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $fn$
 DECLARE
   v_user_id UUID;
   v_inserted BIGINT := 0;
@@ -169,7 +184,7 @@ DECLARE
   p JSONB;
   v_was_inserted BOOLEAN;
 BEGIN
-  v_user_id := resolve_token_user(p_token);
+  v_user_id := public.resolve_token_user(p_token);
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION '设备令牌无效或已过期';
   END IF;
@@ -212,12 +227,16 @@ BEGIN
   END LOOP;
   RETURN QUERY SELECT v_inserted, v_updated;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
+$fn$;
 
-GRANT EXECUTE ON FUNCTION upsert_projects_token(TEXT, JSONB) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_projects_token(TEXT, JSONB) TO anon, authenticated;
 
-CREATE OR REPLACE FUNCTION upsert_topics_token(p_token TEXT, v_topics JSONB)
-RETURNS TABLE(inserted_count BIGINT, updated_count BIGINT) AS $$
+CREATE OR REPLACE FUNCTION public.upsert_topics_token(p_token TEXT, v_topics JSONB)
+RETURNS TABLE(inserted_count BIGINT, updated_count BIGINT)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $fn$
 DECLARE
   v_user_id UUID;
   v_inserted BIGINT := 0;
@@ -225,7 +244,7 @@ DECLARE
   t JSONB;
   v_existing_id UUID;
 BEGIN
-  v_user_id := resolve_token_user(p_token);
+  v_user_id := public.resolve_token_user(p_token);
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION '设备令牌无效或已过期';
   END IF;
@@ -268,17 +287,21 @@ BEGIN
   END LOOP;
   RETURN QUERY SELECT v_inserted, v_updated;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
+$fn$;
 
-GRANT EXECUTE ON FUNCTION upsert_topics_token(TEXT, JSONB) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_topics_token(TEXT, JSONB) TO anon, authenticated;
 
-CREATE OR REPLACE FUNCTION upsert_token_monthly_token(p_token TEXT, v_records JSONB)
-RETURNS VOID AS $$
+CREATE OR REPLACE FUNCTION public.upsert_token_monthly_token(p_token TEXT, v_records JSONB)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $fn$
 DECLARE
   v_user_id UUID;
   r JSONB;
 BEGIN
-  v_user_id := resolve_token_user(p_token);
+  v_user_id := public.resolve_token_user(p_token);
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION '设备令牌无效或已过期';
   END IF;
@@ -300,6 +323,9 @@ BEGIN
       cost_estimate = EXCLUDED.cost_estimate;
   END LOOP;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
+$fn$;
 
-GRANT EXECUTE ON FUNCTION upsert_token_monthly_token(TEXT, JSONB) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_token_monthly_token(TEXT, JSONB) TO anon, authenticated;
+
+-- 刷新 PostgREST schema 缓存，让面板立即识别新 RPC
+NOTIFY pgrst, 'reload schema';
