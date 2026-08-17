@@ -60,8 +60,9 @@ export function findDataFile(customDir, customFile, verbose) {
   found.sort((a, b) => {
     const weight = (f) => {
       const name = path.basename(f);
-      if (DATA_FILENAMES.includes(name)) return 0;
-      if (name === 'codex-project-tracker.html') return 1;
+      // 面板源文件是维护的唯一权威数据源，优先于任何散落的 data.json（避免被 ~/.workbuddy/data.json 等残留文件劫持）
+      if (name === 'codex-project-tracker.html') return 0;
+      if (DATA_FILENAMES.includes(name)) return 1;
       return 2;
     };
     const aw = weight(a.file);
