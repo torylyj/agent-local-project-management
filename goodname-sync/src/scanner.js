@@ -163,21 +163,35 @@ export function findWorkBuddyProjects(verbose) {
   return projects;
 }
 
-// 多平台轻量项目合并：保留面板既有条目，补充 WorkBuddy 等平台解析出的项目
+// 已删清单：网页删除的项目会记录到 ~/.goodname/deleted-projects.json，同步时跳过（防止复活）
+export function loadDeletedKeys() {
+  try {
+    const p = path.join(os.homedir(), '.goodname', 'deleted-projects.json');
+    const arr = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    if (Array.isArray(arr)) {
+      return new Set(arr.filter(x => x && x.name).map(x => x.name + '::' + (x.source || 'codex')));
+    }
+  } catch {}
+  return new Set();
+}
+
+// 多平台轻量项目合并：保留面板既有条目，补充 WorkBuddy 等平台解析出的项目，跳过已删清单
 export function mergeAgentProjects(panelProjects, agentProjects) {
-  if (!agentProjects || !agentProjects.length) return panelProjects;
+  const deleted = loadDeletedKeys();
   const seen = new Set();
   const out = [];
   for (const p of panelProjects) {
     const key = (p.name || '') + '::' + (p.source || 'codex');
     if (!key || seen.has(key)) continue;
     seen.add(key);
+    if (deleted.has(key)) continue;
     out.push(p);
   }
-  for (const p of agentProjects) {
+  for (const p of (agentProjects || [])) {
     const key = (p.name || '') + '::' + (p.source || 'agent');
     if (!key || seen.has(key)) continue;
     seen.add(key);
+    if (deleted.has(key)) continue;
     out.push(p);
   }
   return out;
