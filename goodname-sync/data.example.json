@@ -1,4 +1,14 @@
 {
+  "_prompts": {
+    "说明": "本文件是 Goodname 数据上传模板。AI / Agent 生成数据时：保留整体结构，把示例内容替换为真实内容；milestones / next / criteria 是推荐必填字段，缺失会导致面板详情展示不完整。",
+    "milestones": "为每个项目生成 2-5 条里程碑：{date:'YYYY-MM-DD', text:'可验证的成果描述', done:true/false}。date 用真实计划或完成日期，不要留空；已完成的标 true。",
+    "next": "为每个项目生成 2-4 条下一步建议：字符串，或 {text:'具体可执行的动作', p:'high|mid|low'}。必须是没有完成的下一个动作，不要重复已完成内容。",
+    "criteria": "为每个项目生成 2-5 条完成标准：{text:'可验收的标准（尽量带量化指标）', done:true/false}。只有全部 done=true 才能判定项目完成，其余应标 false。",
+    "source": "根据数据来源平台填写：codex / workbuddy / cursor / dumate / qclaw / openclaw / other。",
+    "status": "todo(待启动) / doing(进行中) / blocked(阻塞) / hold(搁置) / done(已完成)。",
+    "urgency": "0(普通) / 1(紧急) / 2(非常紧急)。",
+    "intro": "项目简介必须 20 字以上，说明这个项目做什么、当前做到哪一步。"
+  },
   "projects": [
     {
       "name": "示例：AI 数据分析助手",

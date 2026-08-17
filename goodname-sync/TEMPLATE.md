@@ -9,6 +9,25 @@
 
 也可以直接用工具生成模板：`node .../goodname-sync.js --init --dir <工作目录>`（会生成带完整字段的 `data.json`）。
 
+## AI 生成提示词（直接复制给 Agent）
+
+把下面这段连同 `data.example.json` 一起给 AI，它会按标准生成完整数据：
+
+```text
+请参考 data.example.json 的字段结构，把示例内容替换为真实项目数据，并严格遵守：
+1. 每个项目必须生成：
+   - milestones（2-5 条）：{date:"YYYY-MM-DD", text:"可验证的成果", done:true/false}
+   - next（2-4 条）：字符串或 {text:"具体动作", p:"high|mid|low"}
+   - criteria（2-5 条）：{text:"可验收标准（尽量带量化指标）", done:true/false}
+2. intro 简介必须 20 字以上，说明项目做什么、当前进度。
+3. status 用：todo/doing/blocked/hold/done；urgency 用 0/1/2。
+4. source 填来源平台：codex/workbuddy/cursor/dumate/qclaw/openclaw/other。
+5. 保留 projects/topics/monthly 三个数组结构，只替换内容。
+生成完成后输出完整 data.json 内容。
+```
+
+上传前可用工具自检：`node .../goodname-sync.js --file data.json --dry-run --verbose`，缺失里程碑/下一步/完成标准的项目会打印 ⚠ 提示。
+
 ## projects（项目数组）
 
 | 字段 | 必填 | 说明 |

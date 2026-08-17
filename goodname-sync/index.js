@@ -1,0 +1,268 @@
+import { findDataFile, findWorkBuddyProjects, mergeAgentProjects } from './scanner.js';
+import { parseDataFile, buildUploadPayload } from './parser.js';
+import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects } from './uploader.js';
+import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
+import { daemonLoop, installService, uninstallService, statusService } from './service.js';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+function resolveKey(options) {
+  const config = loadConfig();
+  const key = options.key || process.env.CODEX_SYNC_KEY || config.sync_key;
+  if (!key) {
+    console.error('错误: 请提供同步密钥');
+    console.error('用法: node ~/.goodname/agent-sync/bin/goodname-sync.js [source] [选项]');
+    console.error('或设置环境变量: export CODEX_SYNC_KEY=sk_xxx');
+    console.error('或让本机 Codex 把密钥保存到 ~/.goodname/config.json');
+    process.exit(1);
+  }
+  return key;
+}
+
+// 优先使用设备令牌（免密钥模式），其次兼容旧版同步密钥
+function resolveCredential(options) {
+  const config = loadConfig();
+  if (options.key || process.env.CODEX_SYNC_KEY) {
+    return { type: 'key', value: options.key || process.env.CODEX_SYNC_KEY };
+  }
+  if (config.device_token) return { type: 'token', value: config.device_token };
+  if (config.sync_key) return { type: 'key', value: config.sync_key };
+  console.error('错误: 未配置同步凭证');
+  console.error('方式一（推荐，无需 API Key）：在面板生成一次性安装码，然后运行 node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --setup <安装码>');
+  console.error('方式二（兼容旧版）：让本机 Codex 把同步密钥保存到 ~/.goodname/config.json');
+  process.exit(1);
+}
+
+export async function syncAction(source, options) {
+  if (options.saveKey) {
+    const p = saveConfig({ sync_key: options.saveKey, saved_at: new Date().toISOString() });
+    console.log('✓ 密钥已保存到 ' + p);
+  }
+
+  if (options.service && !options.setup) {
+    if (options.service === 'install') await installService();
+    else if (options.service === 'uninstall') await uninstallService();
+    else if (options.service === 'status') statusService();
+    else {
+      console.error('未知操作: ' + options.service + '（install | uninstall | status）');
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
+  if (options.setup) {
+    console.log('🔑 正在兑换一次性安装码（30 分钟有效，仅可使用一次）...');
+    const token = await exchangeDeviceCode(options.setup);
+    const p = saveConfig({ device_token: token, saved_at: new Date().toISOString() });
+    console.log('✓ 设备授权成功！已保存本地设备令牌（30 天有效，可在面板吊销）');
+    console.log('  配置: ' + p);
+    if (options.service === 'install') {
+      console.log('⚙️  正在安装常驻同步服务（每 3 小时自动同步 · 失败重试 · 开机补跑）...');
+      await installService();
+    } else if (options.service && options.service !== 'uninstall' && options.service !== 'status') {
+      console.error('未知操作: ' + options.service + '（install | uninstall | status）');
+      process.exit(1);
+    }
+    if (!options.auto) {
+      console.log('  现在可运行：node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --auto');
+      process.exit(0);
+    }
+  }
+
+  if (options.detect) {
+    detectAgents();
+    process.exit(0);
+  }
+
+  if (options.init) {
+    initTemplate(options.dir);
+    process.exit(0);
+  }
+
+  if (options.status) {
+    const key = resolveKey(options);
+    try {
+      const st = await getSyncStatus(key);
+      if (st && st.error) throw new Error(st.error);
+      console.log('═══════════════════════════════════════');
+      console.log('  Goodname 同步状态');
+      console.log('═══════════════════════════════════════');
+      console.log(`  项目数量：${st.project_count || 0}`);
+      console.log(`  对话总数：${st.conversation_count || 0}`);
+      console.log(`  Token 总量：${Number(st.total_tokens || 0).toLocaleString()}`);
+      console.log(`  上次同步：${st.last_synced || '从未'}`);
+      console.log('═══════════════════════════════════════');
+      process.exit(0);
+    } catch (err) {
+      console.error('状态查询失败: ' + err.message);
+      console.error('提示：需先在 Supabase 执行 fix_dynamic.sql 中的 get_sync_status 函数');
+      process.exit(1);
+    }
+  }
+
+  const doSync = async () => {
+    console.log('\n📁 扫描本地数据...');
+    let panelProjects = [];
+    let topics = [];
+    let monthly = {};
+    let dataFile = null;
+    try {
+      dataFile = findDataFile(options.dir, options.file, options.verbose);
+      if (options.verbose) console.log(`  数据文件: ${dataFile}`);
+      const data = parseDataFile(dataFile);
+      panelProjects = data.projects || [];
+      if (data.current && data.current.name) panelProjects = [data.current, ...panelProjects];
+      topics = data.topics || [];
+      monthly = data.monthly || {};
+    } catch (err) {
+      if (options.dir || options.file) throw err; // 显式指定时失败必须报错
+      if (options.verbose) console.log('  未发现面板数据文件，仅同步 Agent 平台解析项目: ' + err.message);
+    }
+    const agentProjects = findWorkBuddyProjects(options.verbose);
+    const allProjects = mergeAgentProjects(panelProjects, agentProjects);
+    const payload = buildUploadPayload({ projects: allProjects, topics, monthly });
+    const totalTokens = payload.projects.reduce((s, p) => s + (p.tokens_used || 0), 0);
+
+    // 完整性自检：提醒缺失 里程碑 / 下一步建议 / 完成标准 的项目
+    const lacks = [];
+    payload.projects.forEach(p => {
+      const pp = (p && p.payload && typeof p.payload === 'object') ? p.payload : {};
+      if ((pp.source || 'codex') === 'workbuddy') return; // WorkBuddy 会话按设计可缺省
+      const miss = [];
+      if (!Array.isArray(pp.milestones) || !pp.milestones.length) miss.push('里程碑');
+      if (!Array.isArray(pp.next) || !pp.next.length) miss.push('下一步建议');
+      if (!Array.isArray(pp.criteria) || !pp.criteria.length) miss.push('完成标准');
+      if (miss.length) lacks.push({ name: p.name, miss });
+    });
+    if (lacks.length) {
+      console.log('\n⚠ 完整性提示（不影响上传，建议补充）：');
+      lacks.forEach(x => console.log('  · ' + x.name + ' 缺少：' + x.miss.join('、')));
+      console.log('  可让 AI 参考 data.example.json / TEMPLATE.md 生成后重新上传。');
+    }
+
+    console.log(`\n✓ 找到 ${payload.projects.length} 个项目 · ${payload.topics.length} 条选题 · ${payload.monthly.length} 条月度统计`);
+    if (options.verbose) {
+      for (const p of payload.projects) {
+        console.log(`  · ${p.name} (${(p.tokens_used || 0).toLocaleString()} tokens)`);
+      }
+    }
+    console.log(`\n📊 汇总: 累计 ${totalTokens.toLocaleString()} tokens`);
+
+    if (options.dryRun) {
+      console.log('\n⏸️  Dry run 模式，不上传数据');
+      return { dry: true };
+    }
+
+    const cred = resolveCredential(options);
+    console.log('\n🚀 开始上传...\n');
+    const result = cred.type === 'token'
+      ? await uploadWithToken(cred.value, payload, options.verbose)
+      : await uploadWithKey(cred.value, payload, options.verbose);
+    if (options.auto) {
+      console.log(`SYNCED: ${payload.projects.length}个项目, ${payload.topics.length}条选题, ${totalTokens.toLocaleString()} tokens`);
+      return result;
+    }
+    console.log('\n' + '═'.repeat(50));
+    console.log('  ✅ 同步完成！');
+    console.log('═'.repeat(50));
+    console.log(`  项目: 新增 ${result.projects.inserted} · 更新 ${result.projects.updated}`);
+    console.log(`  选题: 新增 ${result.topics.inserted} · 更新 ${result.topics.updated}`);
+    console.log('\n  打开 https://goodname.fun/progress 查看数据');
+    try {
+      const db = await listProjects(key);
+      if (Array.isArray(db) && db.length) {
+        const dbNames = db.map(p => p.name);
+        const dup = dbNames.filter((n, i) => dbNames.indexOf(n) !== i);
+        const missing = payload.projects.map(p => p.name).filter(n => !dbNames.includes(n));
+        const names = new Set(dbNames);
+        const localSet = new Set(payload.projects.map(p => p.name));
+        const extra = [...names].filter(n => !localSet.has(n));
+        console.log(`  校验：云端 ${db.length} 个项目` +
+          (dup.length ? ` · ⚠ 重复 ${dup.length} 个（${[...new Set(dup)].join('、')}）` : '') +
+          (missing.length ? ` · ⚠ 本地 ${missing.length} 个未同步（${missing.join('、')}）` : '') +
+          (extra.length ? ` · 云端 ${extra.length} 个本地不存在（${extra.join('、')}）` : ''));
+      }
+    } catch (e) {}
+    return result;
+  };
+
+  if (options.daemon) {
+    console.log(`🔁 常驻模式已启动：每 3 小时同步一次 · 失败 10 分钟重试 · 开机补跑`);
+    daemonLoop(doSync, 3, 10);
+    return;
+  }
+
+  if (options.watch) {
+    const fs = await import('fs');
+    const path = await import('path');
+    const dataFile = findDataFile(options.dir, options.file, false);
+    const watchDir = fs.existsSync(dataFile) && fs.statSync(dataFile).isFile() ? path.dirname(dataFile) : options.dir;
+    console.log('🔍 监控模式已启动，检测到数据变化时自动同步...');
+    let timer = null;
+    const watcher = fs.watch(watchDir, { recursive: true }, (eventType, filename) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        console.log(`\n[${new Date().toLocaleString()}] 检测到变化，开始同步...`);
+        try { await doSync(); } catch (err) { console.error('✗ 同步失败: ' + err.message); }
+      }, 5000);
+    });
+    process.on('SIGINT', () => { watcher.close(); console.log('\n监控已停止'); process.exit(0); });
+    return;
+  }
+
+  await doSync();
+}
+
+function detectAgents() {
+  console.log('═══════════════════════════════════════');
+  console.log('  Agent 平台检测');
+  console.log('═══════════════════════════════════════');
+  const present = [];
+  for (const root of AGENT_ROOTS) {
+    for (const rp of root.paths) {
+      const p = rp.startsWith('~') ? path.join(os.homedir(), rp.slice(1)) : rp;
+      if (fs.existsSync(p)) { present.push(root.label + ' → ' + p); break; }
+    }
+  }
+  if (!present.length) {
+    console.log('  未检测到常见 Agent 数据目录。');
+  } else {
+    present.forEach(x => console.log('  ✓ ' + x));
+  }
+  console.log('');
+  console.log('  · 已识别平台：工具会自动扫描并上传其项目数据。');
+  console.log('  · 未识别平台：让 Agent 生成上传数据 →');
+  console.log('    node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --init --dir <工作目录>');
+  console.log('    填写生成的 data.json 后：node ... --file <data.json> --auto');
+}
+
+function initTemplate(dir) {
+  const target = dir ? (dir.startsWith('~') ? path.join(os.homedir(), dir.slice(1)) : dir) : process.cwd();
+  fs.mkdirSync(target, { recursive: true });
+  const file = path.join(target, 'data.json');
+  if (fs.existsSync(file)) {
+    console.log('⚠ 已存在 ' + file + '，跳过（避免覆盖已有数据）');
+    return;
+  }
+  let content = null;
+  try {
+    content = fs.readFileSync(path.join(PKG_ROOT, 'data.example.json'), 'utf-8');
+  } catch (e) { content = null; }
+  if (!content) {
+    const tpl = {
+      projects: [{ name: '示例项目', intro: '在这里填写项目简介', status: 'doing', cat: 'AI 应用', tokens: 0, conv: 0, milestones: [], next: [], criteria: [], files: [], topics: [], decisions: [] }],
+      topics: [],
+      monthly: []
+    };
+    content = JSON.stringify(tpl, null, 2);
+  }
+  fs.writeFileSync(file, content, 'utf-8');
+  console.log('✓ 已生成数据模板: ' + file);
+  console.log('  模板包含完整字段示例（projects / topics / monthly），字段说明见 TEMPLATE.md');
+  console.log('  请把示例内容替换为真实数据，然后运行：');
+  console.log('  node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --file ' + file + ' --auto');
+}
