@@ -111,13 +111,24 @@ export function findWorkBuddyProjects(verbose) {
   for (const f of traceFiles) {
     if (!f.endsWith('.json')) continue;
     const d = readJsonSafe(f);
-    if (!d || !d.trace || !d.trace.sessionId) continue;
+    if (!d || !d.trace) continue;
+    if (!d.trace.sessionId) continue; // 无 sessionId 的 trace 无法归属会话，跳过（避免产生碎片项目）
     const sid = d.trace.sessionId;
     const rec = bySession.get(sid) || { tokens: 0, count: 0, first: '', last: '', agent: d.trace.agentName || 'workbuddy' };
     rec.tokens += Number(d.trace.totalTokens) || 0;
     rec.count += 1;
     if (d.trace.startedAt && (!rec.first || d.trace.startedAt < rec.first)) rec.first = d.trace.startedAt;
     if (d.trace.endedAt && d.trace.endedAt > rec.last) rec.last = d.trace.endedAt;
+    if (!rec.summary && Array.isArray(d.spans)) {
+      for (const s of d.spans) {
+        const input = s && (s.toolInput || s.input);
+        if (!input || typeof input !== 'string') continue;
+        const m = input.match(/<user_query>([\s\S]*?)<\/user_query>/i) || input.match(/"content":"([^"]{8,120})/);
+        const t = m ? m[1] : input;
+        const clean = t.replace(/\s+/g, ' ').trim().slice(0, 120);
+        if (clean && clean.length >= 4) { rec.summary = clean; break; }
+      }
+    }
     bySession.set(sid, rec);
   }
   const push = (sid, rec, s) => {
@@ -134,7 +145,9 @@ export function findWorkBuddyProjects(verbose) {
       updated: String(updatedAt || '').slice(0, 10),
       tokens: (rec && rec.tokens) || 0,
       conv: (rec && rec.count) || 1,
-      intro: '来自 WorkBuddy 的会话，共 ' + ((rec && rec.count) || 1) + ' 次执行。',
+      intro: (rec && rec.summary)
+        ? '来自 WorkBuddy 的会话：' + rec.summary
+        : '来自 WorkBuddy 的会话，共 ' + ((rec && rec.count) || 1) + ' 次执行。',
       agent: (rec && rec.agent) || 'workbuddy',
       milestones: [], next: [], criteria: [], files: [], topics: [], decisions: [],
     });

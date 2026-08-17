@@ -121,9 +121,11 @@ WantedBy=default.target
 }
 
 export async function installService() {
-  const key = loadConfig().sync_key;
-  if (!key) {
-    console.error('✗ 请先让本机 Codex 把同步密钥保存到 ~/.goodname/config.json');
+  const cfg = loadConfig();
+  if (!cfg.sync_key && !cfg.device_token) {
+    console.error('✗ 未配置同步凭证');
+    console.error('  方式一（免密钥）：node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --setup <安装码>');
+    console.error('  方式二（旧版）：让本机 Codex 把同步密钥保存到 ~/.goodname/config.json');
     process.exit(1);
   }
   // 迁移旧版服务（com.goodname.codex-sync），避免新老服务重复拉起

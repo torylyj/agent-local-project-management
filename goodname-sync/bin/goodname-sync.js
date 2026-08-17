@@ -18,6 +18,8 @@ function parseArgs(argv) {
     else if (a === '--status') options.status = true;
     else if (a === '--watch') options.watch = true;
     else if (a === '--daemon') options.daemon = true;
+    else if (a === '--detect') options.detect = true;
+    else if (a === '--init') options.init = true;
     else if (a === '--service') options.service = argv[++i];
     else if (a === '--help' || a === '-h') { options.help = true; }
     else if (a.startsWith('-')) { console.error('未知参数: ' + a); process.exit(1); }
@@ -50,6 +52,8 @@ if (options.help) {
       --watch          监控数据变化自动同步
       --daemon         常驻模式：每 3 小时同步、失败重试、开机补跑
       --service <act>  安装/卸载常驻服务：install | uninstall | status
+      --detect         检测本机已安装的 Agent 平台
+      --init           生成 data.json 上传模板（配合 --dir <目录> 使用）
 `);
   process.exit(0);
 }

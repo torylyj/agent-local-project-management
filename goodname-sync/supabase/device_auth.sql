@@ -86,7 +86,7 @@ BEGIN
     EXIT WHEN NOT EXISTS (SELECT 1 FROM public.device_codes WHERE code_hash = v_hash);
   END LOOP;
   INSERT INTO public.device_codes (code_hash, user_id, expires_at)
-  VALUES (v_hash, auth.uid(), now() + interval '10 minutes');
+  VALUES (v_hash, auth.uid(), now() + interval '30 minutes');
   RETURN v_code;
 END;
 $fn$;
@@ -116,7 +116,7 @@ BEGIN
     AND expires_at > now()
   FOR UPDATE;
   IF v_user_id IS NULL THEN
-    RAISE EXCEPTION '安装码无效或已过期（10 分钟有效，仅可使用一次）';
+    RAISE EXCEPTION '安装码无效或已过期（30 分钟有效，仅可使用一次）';
   END IF;
   v_token := '';
   FOR i IN 1..64 LOOP

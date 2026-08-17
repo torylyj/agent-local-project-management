@@ -1,8 +1,11 @@
 import { findDataFile, findWorkBuddyProjects, mergeAgentProjects } from './scanner.js';
 import { parseDataFile, buildUploadPayload } from './parser.js';
 import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects } from './uploader.js';
-import { loadConfig, saveConfig } from './config.js';
+import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
 import { daemonLoop, installService, uninstallService, statusService } from './service.js';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
 function resolveKey(options) {
   const config = loadConfig();
@@ -37,7 +40,7 @@ export async function syncAction(source, options) {
     console.log('✓ 密钥已保存到 ' + p);
   }
 
-  if (options.service) {
+  if (options.service && !options.setup) {
     if (options.service === 'install') await installService();
     else if (options.service === 'uninstall') await uninstallService();
     else if (options.service === 'status') statusService();
@@ -49,12 +52,31 @@ export async function syncAction(source, options) {
   }
 
   if (options.setup) {
-    console.log('🔑 正在兑换一次性安装码（10 分钟有效，仅可使用一次）...');
+    console.log('🔑 正在兑换一次性安装码（30 分钟有效，仅可使用一次）...');
     const token = await exchangeDeviceCode(options.setup);
     const p = saveConfig({ device_token: token, saved_at: new Date().toISOString() });
     console.log('✓ 设备授权成功！已保存本地设备令牌（30 天有效，可在面板吊销）');
     console.log('  配置: ' + p);
-    console.log('  现在可运行：node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --auto');
+    if (options.service === 'install') {
+      console.log('⚙️  正在安装常驻同步服务（每 3 小时自动同步 · 失败重试 · 开机补跑）...');
+      await installService();
+    } else if (options.service && options.service !== 'uninstall' && options.service !== 'status') {
+      console.error('未知操作: ' + options.service + '（install | uninstall | status）');
+      process.exit(1);
+    }
+    if (!options.auto) {
+      console.log('  现在可运行：node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --auto');
+      process.exit(0);
+    }
+  }
+
+  if (options.detect) {
+    detectAgents();
+    process.exit(0);
+  }
+
+  if (options.init) {
+    initTemplate(options.dir);
     process.exit(0);
   }
 
@@ -173,4 +195,63 @@ export async function syncAction(source, options) {
   }
 
   await doSync();
+}
+
+function detectAgents() {
+  console.log('═══════════════════════════════════════');
+  console.log('  Agent 平台检测');
+  console.log('═══════════════════════════════════════');
+  const present = [];
+  for (const root of AGENT_ROOTS) {
+    for (const rp of root.paths) {
+      const p = rp.startsWith('~') ? path.join(os.homedir(), rp.slice(1)) : rp;
+      if (fs.existsSync(p)) { present.push(root.label + ' → ' + p); break; }
+    }
+  }
+  if (!present.length) {
+    console.log('  未检测到常见 Agent 数据目录。');
+  } else {
+    present.forEach(x => console.log('  ✓ ' + x));
+  }
+  console.log('');
+  console.log('  · 已识别平台：工具会自动扫描并上传其项目数据。');
+  console.log('  · 未识别平台：让 Agent 生成上传数据 →');
+  console.log('    node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --init --dir <工作目录>');
+  console.log('    填写生成的 data.json 后：node ... --file <data.json> --auto');
+}
+
+function initTemplate(dir) {
+  const target = dir ? (dir.startsWith('~') ? path.join(os.homedir(), dir.slice(1)) : dir) : process.cwd();
+  fs.mkdirSync(target, { recursive: true });
+  const file = path.join(target, 'data.json');
+  if (fs.existsSync(file)) {
+    console.log('⚠ 已存在 ' + file + '，跳过（避免覆盖已有数据）');
+    return;
+  }
+  const tpl = {
+    projects: [
+      {
+        name: '示例项目',
+        intro: '在这里填写项目简介',
+        status: 'doing',
+        cat: 'AI 应用',
+        date: new Date().toISOString().slice(0, 10),
+        updated: new Date().toISOString().slice(0, 10),
+        tokens: 0,
+        conv: 0,
+        milestones: [],
+        next: [],
+        criteria: [],
+        files: [],
+        topics: [],
+        decisions: []
+      }
+    ],
+    topics: [],
+    monthly: []
+  };
+  fs.writeFileSync(file, JSON.stringify(tpl, null, 2), 'utf-8');
+  console.log('✓ 已生成数据模板: ' + file);
+  console.log('  请让 Agent 把「示例项目」替换为真实项目，然后运行：');
+  console.log('  node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --file ' + file + ' --auto');
 }

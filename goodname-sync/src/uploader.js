@@ -78,7 +78,7 @@ export async function uploadWithKey(key, payload, verbose) {
 export async function exchangeDeviceCode(code) {
   const data = await rpc('exchange_device_code', { p_code: code });
   if (!data || typeof data !== 'string' || !data.length) {
-    throw new Error('安装码无效或已过期（10 分钟有效，仅可使用一次）');
+    throw new Error('安装码无效或已过期（30 分钟有效，仅可使用一次）');
   }
   return data;
 }
