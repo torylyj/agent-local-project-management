@@ -127,6 +127,23 @@ export async function syncAction(source, options) {
     const payload = buildUploadPayload({ projects: allProjects, topics, monthly });
     const totalTokens = payload.projects.reduce((s, p) => s + (p.tokens_used || 0), 0);
 
+    // 完整性自检：提醒缺失 里程碑 / 下一步建议 / 完成标准 的项目
+    const lacks = [];
+    payload.projects.forEach(p => {
+      const pp = (p && p.payload && typeof p.payload === 'object') ? p.payload : {};
+      if ((pp.source || 'codex') === 'workbuddy') return; // WorkBuddy 会话按设计可缺省
+      const miss = [];
+      if (!Array.isArray(pp.milestones) || !pp.milestones.length) miss.push('里程碑');
+      if (!Array.isArray(pp.next) || !pp.next.length) miss.push('下一步建议');
+      if (!Array.isArray(pp.criteria) || !pp.criteria.length) miss.push('完成标准');
+      if (miss.length) lacks.push({ name: p.name, miss });
+    });
+    if (lacks.length) {
+      console.log('\n⚠ 完整性提示（不影响上传，建议补充）：');
+      lacks.forEach(x => console.log('  · ' + x.name + ' 缺少：' + x.miss.join('、')));
+      console.log('  可让 AI 参考 data.example.json / TEMPLATE.md 生成后重新上传。');
+    }
+
     console.log(`\n✓ 找到 ${payload.projects.length} 个项目 · ${payload.topics.length} 条选题 · ${payload.monthly.length} 条月度统计`);
     if (options.verbose) {
       for (const p of payload.projects) {
