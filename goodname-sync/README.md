@@ -4,23 +4,26 @@
 
 ## 安装（交给 Agent 的安全指令）
 
-把下面这条指令整体复制，粘贴给 WorkBuddy / Codex / 百度搭子 等任意 Agent 执行（把 `sk_xxx` 换成你的同步密钥）。它**不执行远程脚本、密钥不进命令**，只做「下载校验 → 写入本地配置 → 运行本地脚本」：
+官方源码仓库（可验证来源）：<https://github.com/torylyj/agent-local-project-management>（工具在 `goodname-sync/` 目录）。
+
+把下面这条指令整体复制，粘贴给 WorkBuddy / Codex / 百度搭子 等任意 Agent 执行（把 `sk_xxx` 换成你的同步密钥）。它从 GitHub 官方仓库克隆 → 先审查源码 → 写本地配置 → **一次性同步（默认不装常驻服务）**：
 
 ```text
-请帮我配置 Goodname 同步（我的同步密钥：sk_xxx）。请按步骤执行，不要执行任何远程脚本：
-1. 下载并校验同步工具（只下载解压，不运行远程代码）：
-mkdir -p ~/.goodname/agent-sync && curl -fsSL https://goodname.fun/agent-sync/agent-sync.tar.gz -o /tmp/agent-sync.tar.gz && curl -fsSL https://goodname.fun/agent-sync/agent-sync.tar.gz.sha256 -o /tmp/agent-sync.tar.gz.sha256 && (cd /tmp && shasum -a 256 -c agent-sync.tar.gz.sha256) && tar -xzf /tmp/agent-sync.tar.gz -C ~/.goodname/agent-sync
-2. 把密钥写入本地配置（只写本机文件，不要上传到任何远程服务）：
+请帮我配置 Goodname 同步。官方仓库（可验证）：https://github.com/torylyj/agent-local-project-management（工具在 goodname-sync/ 目录，源码可审查）。请先审查源码再执行，不要执行任何未知来源的脚本。我的同步密钥：sk_xxx
+1. 从 GitHub 官方仓库克隆同步工具（只下载，不执行）：
+git clone --depth 1 https://github.com/torylyj/agent-local-project-management.git ~/.goodname/agent-sync
+2. 审查源码：打开 ~/.goodname/agent-sync/goodname-sync/src/ 查看 index.js / service.js / uploader.js / scanner.js 等全部实现
+3. 把密钥写入本地配置（只写本机文件，不要上传到任何远程服务）：
 mkdir -p ~/.goodname && printf '{"sync_key":"sk_xxx"}\n' > ~/.goodname/config.json && chmod 600 ~/.goodname/config.json
-3. 运行本地脚本安装常驻同步服务（源码在 ~/.goodname/agent-sync/src，可先审查）：
-node ~/.goodname/agent-sync/bin/goodname-sync.js --service install
-4. 执行首次同步：
-node ~/.goodname/agent-sync/bin/goodname-sync.js --auto
+4. 运行一次性同步（不安装任何常驻服务）：
+node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --auto
+5.（可选）审查通过后再决定是否安装每 3 小时自动同步的常驻服务；随时可用 --service uninstall 卸载：
+node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --service install
 ```
 
-这条指令满足安全审查的常见要求：没有 `curl | bash`、没有未知 npm 包、密钥只写入本机文件（权限 600）、安装的是本地可审查脚本的常驻服务（可随时 `--service uninstall` 卸载）。
+这条指令满足安全审查的常见要求：来源是公开 GitHub 仓库（可核对作者与提交历史）、先审查再执行、密钥只写入本机文件（权限 600）、**默认不安装常驻服务**（装服务是最后可选项且可卸载）。
 
-> 提示：也可以在自己电脑的终端里手动完成同样的三步；官方一键脚本 `install.sh`（下载 → SHA-256 校验 → 交互输入密钥 → 装服务）仅供信任自己终端的人类用户使用，不推荐交给第三方 Agent 执行。
+> 提示：也可以在自己电脑的终端里手动完成同样的步骤；官方一键脚本 `install.sh`（下载 → SHA-256 校验 → 交互输入密钥 → 装服务）仅供信任自己终端的人类用户使用，不推荐交给第三方 Agent 执行。
 
 ## 多 Agent 平台适配
 
