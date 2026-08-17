@@ -137,20 +137,12 @@ export async function syncAction(source, options) {
     const payload = buildUploadPayload({ projects: allProjects, topics, monthly });
     const totalTokens = payload.projects.reduce((s, p) => s + (p.tokens_used || 0), 0);
 
-    // 完整性自检：提醒缺失 里程碑 / 下一步建议 / 完成标准 的项目
-    const lacks = [];
-    payload.projects.forEach(p => {
-      const pp = (p && p.payload && typeof p.payload === 'object') ? p.payload : {};
-      if ((pp.source || 'codex') === 'workbuddy') return; // WorkBuddy 会话按设计可缺省
-      const miss = [];
-      if (!Array.isArray(pp.milestones) || !pp.milestones.length) miss.push('里程碑');
-      if (!Array.isArray(pp.next) || !pp.next.length) miss.push('下一步建议');
-      if (!Array.isArray(pp.criteria) || !pp.criteria.length) miss.push('完成标准');
-      if (miss.length) lacks.push({ name: p.name, miss });
-    });
-    if (lacks.length) {
-      console.log('\n⚠ 完整性提示（不影响上传，建议补充）：');
-      lacks.forEach(x => console.log('  · ' + x.name + ' 缺少：' + x.miss.join('、')));
+    // 完整性自检：字段齐全性 / 取值合法性 / 格式
+    const issues = runCompletenessCheck(payload);
+    if (issues.length) {
+      console.log('\n⚠ 完整性自检（不影响上传，建议修正）：');
+      issues.slice(0, 25).forEach(x => console.log('  ' + x));
+      if (issues.length > 25) console.log('  … 共 ' + issues.length + ' 条');
       console.log('  可让 AI 参考 data.example.json / TEMPLATE.md 生成后重新上传。');
     }
 
@@ -247,6 +239,47 @@ function detectAgents() {
   console.log('  · 未识别平台：让 Agent 生成上传数据 →');
   console.log('    node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --init --dir <工作目录>');
   console.log('    填写生成的 data.json 后：node ... --file <data.json> --auto');
+}
+
+function runCompletenessCheck(payload) {
+  const issues = [];
+  const dateRe = /^\d{4}-\d{2}-\d{2}([T ].*)?$/;
+  const statusOk = ['todo', 'doing', 'blocked', 'hold', 'done'];
+  (payload.projects || []).forEach(p => {
+    const pp = (p && p.payload && typeof p.payload === 'object') ? p.payload : {};
+    const name = p.name || pp.name || '未命名项目';
+    if ((pp.source || 'codex') === 'workbuddy') return; // WorkBuddy 会话按设计可缺省
+    if (!name || String(name).trim().length < 2) issues.push('· ' + name + '：项目名称为空或过短');
+    if (!pp.intro || String(pp.intro).trim().length < 20) issues.push('· ' + name + '：简介过短（建议 ≥20 字，说明做什么/当前进度）');
+    if (!statusOk.includes(pp.status)) issues.push('· ' + name + '：status 取值无效「' + (pp.status || '空') + '」（应为 todo/doing/blocked/hold/done）');
+    if (!pp.cat) issues.push('· ' + name + '：缺少分类 cat');
+    if (!Array.isArray(pp.milestones) || !pp.milestones.length) {
+      issues.push('· ' + name + '：缺少里程碑');
+    } else {
+      if (pp.milestones.some(m => !m || !m.text)) issues.push('· ' + name + '：存在无文本的里程碑');
+      const badDate = pp.milestones.find(m => m && m.date && !dateRe.test(String(m.date)));
+      if (badDate) issues.push('· ' + name + '：里程碑日期格式应为 YYYY-MM-DD（' + badDate.date + '）');
+    }
+    if (!Array.isArray(pp.next) || !pp.next.length) issues.push('· ' + name + '：缺少下一步建议');
+    if (!Array.isArray(pp.criteria) || !pp.criteria.length) {
+      issues.push('· ' + name + '：缺少完成标准');
+    } else if (pp.criteria.some(c => !c || !c.text)) {
+      issues.push('· ' + name + '：存在无文本的完成标准');
+    }
+    if (pp.urgency != null && ![0, 1, 2].includes(Number(pp.urgency))) issues.push('· ' + name + '：urgency 应为 0/1/2');
+    if (pp.progress != null && (Number(pp.progress) < 0 || Number(pp.progress) > 100)) issues.push('· ' + name + '：progress 应为 0-100');
+    if (pp.date && !dateRe.test(String(pp.date))) issues.push('· ' + name + '：date 格式应为 YYYY-MM-DD（' + pp.date + '）');
+    if (pp.updated && !dateRe.test(String(pp.updated))) issues.push('· ' + name + '：updated 格式应为 YYYY-MM-DD（' + pp.updated + '）');
+  });
+  (payload.topics || []).forEach(t => {
+    if (!t || !t.title || !String(t.title).trim()) issues.push('· 选题：缺少标题');
+  });
+  (payload.monthly || []).forEach(m => {
+    if (!m || !m.year_month || !/^\d{4}-\d{2}$/.test(String(m.year_month))) {
+      issues.push('· 月度：year_month 格式应为 YYYY-MM（' + ((m && m.year_month) || '空') + '）');
+    }
+  });
+  return issues;
 }
 
 function initTemplate(dir) {
