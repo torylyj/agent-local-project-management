@@ -142,15 +142,15 @@ AS $fn$
 BEGIN
   RETURN QUERY
   SELECT
-    left(token_hash, 10)::TEXT,
-    label,
-    created_at,
-    expires_at,
-    last_used_at,
-    revoked
-  FROM public.device_tokens
-  WHERE user_id = auth.uid()
-  ORDER BY created_at DESC;
+    left(t.token_hash, 10)::TEXT,
+    t.label,
+    t.created_at,
+    t.expires_at,
+    t.last_used_at,
+    t.revoked
+  FROM public.device_tokens t
+  WHERE t.user_id = auth.uid()
+  ORDER BY t.created_at DESC;
 END;
 $fn$;
 
