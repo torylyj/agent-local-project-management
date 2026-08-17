@@ -103,6 +103,15 @@ function sessionName(workDir, sid, updatedAt) {
   return 'WorkBuddy 会话 · ' + sid.slice(0, 8);
 }
 
+function inferCat(dir, summary) {
+  const s = String(dir || '') + ' ' + String(summary || '');
+  if (/transcrib|转录|视频|动画|剪辑|配音/i.test(s)) return 'video';
+  if (/简历|求职|作品集|面试/i.test(s)) return 'content';
+  if (/研究|调研|报告|论文/i.test(s)) return 'research';
+  if (/代码|开发|脚本|程序|bug|接口/i.test(s)) return 'tooling';
+  return 'tooling';
+}
+
 // 把 WorkBuddy 的 sessions.json + traces 解析为轻量项目（source=workbuddy）
 export function findWorkBuddyProjects(verbose) {
   const wbRoot = WORKBUDDY_DIR.startsWith('~') ? path.join(os.homedir(), WORKBUDDY_DIR.slice(1)) : WORKBUDDY_DIR;
@@ -180,7 +189,13 @@ export function findWorkBuddyProjects(verbose) {
     if (!d || !Array.isArray(d.artifacts)) continue;
     for (const a of d.artifacts) {
       if (a && (a.uri || a.name || a.title)) {
-        artifacts.push({ name: a.name || a.title || a.uri, uri: a.uri || '', updatedAt: a.updatedAt || a.createdAt || '' });
+        const uri = a.uri || '';
+        let pathVal = uri.replace(/^file:\/\//, '');
+        try { pathVal = decodeURIComponent(pathVal); } catch (e) {}
+        const tRaw = a.updatedAt || a.createdAt || '';
+        const tNum = Number(tRaw);
+        const ts = /^\d+$/.test(String(tRaw)) ? tNum : (Date.parse(tRaw) || 0);
+        artifacts.push({ name: a.name || a.title || pathVal, path: pathVal || a.name || '', ts });
       }
     }
   }
@@ -202,12 +217,12 @@ export function findWorkBuddyProjects(verbose) {
     if (stale) next.push({ text: '该会话已超过 14 天未更新，请核对产出并决定继续或归档', p: 'low' });
     if (!next.length) next.push({ text: '查看会话产出并推进下一步', p: 'mid' });
     const files = [];
-    if (updatedAt) {
+    if (startedAt || updatedAt) {
+      const lo = (Date.parse(startedAt) || 0) - 2 * DAY;
       const up = Date.parse(updatedAt) || Date.now();
-      const lo = up - 2 * DAY, hi = up + 2 * DAY;
+      const hi = up + 2 * DAY;
       artifacts.forEach(a => {
-        const at = Date.parse(a.updatedAt || '') || 0;
-        if (at && at >= lo && at <= hi && files.length < 8) files.push(a.uri || a.name);
+        if (a.ts && a.ts >= lo && a.ts <= hi && files.length < 8) files.push(a.path || a.name);
       });
     }
     const criteria = [];
@@ -224,6 +239,7 @@ export function findWorkBuddyProjects(verbose) {
       name: sessionName(s && s.workDir, sid, updatedAt),
       dir: (s && s.workDir) || '',
       source: 'workbuddy',
+      cat: inferCat(s && s.workDir, rec && rec.summary),
       status: stale ? 'hold' : 'doing',
       date: String(startedAt || '').slice(0, 10),
       updated: String(updatedAt || '').slice(0, 10),
