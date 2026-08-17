@@ -58,7 +58,7 @@ BEGIN
   END IF;
   RETURN v_user_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
 
 GRANT EXECUTE ON FUNCTION resolve_token_user(TEXT) TO anon, authenticated;
 
@@ -85,7 +85,7 @@ BEGIN
   VALUES (v_hash, auth.uid(), now() + interval '10 minutes');
   RETURN v_code;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
 
 GRANT EXECUTE ON FUNCTION create_device_code() TO authenticated;
 
@@ -122,7 +122,7 @@ BEGIN
   WHERE code_hash = v_code_hash;
   RETURN v_token;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
 
 GRANT EXECUTE ON FUNCTION exchange_device_code(TEXT) TO anon, authenticated;
 
@@ -142,7 +142,7 @@ BEGIN
   WHERE user_id = auth.uid()
   ORDER BY created_at DESC;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
 
 GRANT EXECUTE ON FUNCTION list_device_tokens() TO authenticated;
 
@@ -154,7 +154,7 @@ BEGIN
   SET revoked = TRUE
   WHERE left(token_hash, 10) = p_token_id AND user_id = auth.uid();
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
 
 GRANT EXECUTE ON FUNCTION revoke_device_token(TEXT) TO authenticated;
 
@@ -268,7 +268,7 @@ BEGIN
   END LOOP;
   RETURN QUERY SELECT v_inserted, v_updated;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
 
 GRANT EXECUTE ON FUNCTION upsert_topics_token(TEXT, JSONB) TO anon, authenticated;
 
@@ -300,6 +300,6 @@ BEGIN
       cost_estimate = EXCLUDED.cost_estimate;
   END LOOP;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions, pg_temp;
 
 GRANT EXECUTE ON FUNCTION upsert_token_monthly_token(TEXT, JSONB) TO anon, authenticated;
