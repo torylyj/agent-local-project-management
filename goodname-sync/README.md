@@ -143,6 +143,25 @@ Agent 触发词：用户说「帮我同步项目到 goodname」「更新一下�
 - 月度 Token 统计（成本按 $0.3/百万 token 估算）
 - `--status` 可查询云端项目数 / 对话数 / Token 总量 / 上次同步时间
 
+## 数据模板（AI 生成上传参考）
+
+仓库内提供两份参考文件：
+
+- [`data.example.json`](./data.example.json)：完整字段示例（projects / topics / monthly，含里程碑、下一步、完成标准、决策日志等）；
+- [`TEMPLATE.md`](./TEMPLATE.md)：每个字段的必填/可选与取值说明。
+
+AI / 新手生成数据流程：
+
+```bash
+# 1. 生成带完整字段的 data.json（内含示例）
+node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --init --dir <工作目录>
+
+# 2. 把示例替换为真实内容（参考 TEMPLATE.md）
+
+# 3. 上传
+node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --file <工作目录>/data.json --auto
+```
+
 ## 安全
 
 - 数据库中只存密钥的 SHA-256 哈希，明文只在生成时显示一次

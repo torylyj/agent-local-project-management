@@ -9,7 +9,10 @@
   "files": [
     "bin",
     "src",
-    "README.md"
+    "README.md",
+    "TEMPLATE.md",
+    "data.example.json",
+    "install.sh"
   ],
   "scripts": {
     "test": "node --test test/"

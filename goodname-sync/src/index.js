@@ -6,6 +6,9 @@ import { daemonLoop, installService, uninstallService, statusService } from './s
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function resolveKey(options) {
   const config = loadConfig();
@@ -228,30 +231,21 @@ function initTemplate(dir) {
     console.log('⚠ 已存在 ' + file + '，跳过（避免覆盖已有数据）');
     return;
   }
-  const tpl = {
-    projects: [
-      {
-        name: '示例项目',
-        intro: '在这里填写项目简介',
-        status: 'doing',
-        cat: 'AI 应用',
-        date: new Date().toISOString().slice(0, 10),
-        updated: new Date().toISOString().slice(0, 10),
-        tokens: 0,
-        conv: 0,
-        milestones: [],
-        next: [],
-        criteria: [],
-        files: [],
-        topics: [],
-        decisions: []
-      }
-    ],
-    topics: [],
-    monthly: []
-  };
-  fs.writeFileSync(file, JSON.stringify(tpl, null, 2), 'utf-8');
+  let content = null;
+  try {
+    content = fs.readFileSync(path.join(PKG_ROOT, 'data.example.json'), 'utf-8');
+  } catch (e) { content = null; }
+  if (!content) {
+    const tpl = {
+      projects: [{ name: '示例项目', intro: '在这里填写项目简介', status: 'doing', cat: 'AI 应用', tokens: 0, conv: 0, milestones: [], next: [], criteria: [], files: [], topics: [], decisions: [] }],
+      topics: [],
+      monthly: []
+    };
+    content = JSON.stringify(tpl, null, 2);
+  }
+  fs.writeFileSync(file, content, 'utf-8');
   console.log('✓ 已生成数据模板: ' + file);
-  console.log('  请让 Agent 把「示例项目」替换为真实项目，然后运行：');
+  console.log('  模板包含完整字段示例（projects / topics / monthly），字段说明见 TEMPLATE.md');
+  console.log('  请把示例内容替换为真实数据，然后运行：');
   console.log('  node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --file ' + file + ' --auto');
 }

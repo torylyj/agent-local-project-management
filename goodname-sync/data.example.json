@@ -1,0 +1,81 @@
+{
+  "projects": [
+    {
+      "name": "示例：AI 数据分析助手",
+      "intro": "这是一个完整字段示例：AI 数据分析助手，支持自然语言查询、自动出图与周报生成。",
+      "status": "doing",
+      "cat": "AI 应用",
+      "progress": 65,
+      "tokens": 12800000,
+      "conv": 24,
+      "date": "2026-08-01",
+      "updated": "2026-08-17",
+      "urgency": 1,
+      "source": "codex",
+      "dir": "/Users/you/Projects/ai-data-assistant",
+      "milestones": [
+        { "date": "2026-08-10", "text": "完成自然语言查询引擎 v1", "done": true },
+        { "date": "2026-08-20", "text": "图表自动生成接入", "done": false }
+      ],
+      "next": [
+        { "text": "接入多数据源（Excel / API）", "p": "high" },
+        "优化查询延迟与缓存"
+      ],
+      "criteria": [
+        { "text": "自然语言查询准确率 ≥ 90%", "done": false },
+        { "text": "支持至少 3 种图表类型", "done": true }
+      ],
+      "files": [
+        "/Users/you/Projects/ai-data-assistant/README.md",
+        "/Users/you/Projects/ai-data-assistant/src/main.py"
+      ],
+      "topics": [],
+      "decisions": [
+        { "date": "2026-08-12", "title": "查询引擎选择规则引擎而非全 LLM 生成", "reason": "延迟更低、结果可复现，LLM 仅用于意图分类。", "tags": ["架构"] }
+      ]
+    },
+    {
+      "name": "示例：WorkBuddy 会话",
+      "intro": "来自 WorkBuddy 的会话：帮忙整理发票并按日期重命名归档。",
+      "status": "doing",
+      "cat": "工具脚本",
+      "progress": 0,
+      "tokens": 189250,
+      "conv": 3,
+      "date": "2026-07-29",
+      "updated": "2026-07-29",
+      "urgency": 0,
+      "source": "workbuddy",
+      "dir": "/Users/you/WorkBuddy/2026-07-29-17-59-22",
+      "milestones": [],
+      "next": [],
+      "criteria": [],
+      "files": [],
+      "topics": [],
+      "decisions": []
+    }
+  ],
+  "topics": [
+    {
+      "title": "示例选题：AI 工具一周实测",
+      "type": "内容创作",
+      "desc": "实测 5 款 AI 工具并输出对比测评，蹭 AI 热点建立专业人设。",
+      "project": "示例：AI 数据分析助手",
+      "mark": "todo",
+      "platforms": ["小红书", "B 站"],
+      "plan": [
+        { "h": "目标与定位" },
+        "用真实对比建立「AI 效率工具测评」人设。",
+        { "h": "制作步骤" },
+        "① 选题：确定 5 款工具；② 实测记录：截图 + 数据；③ 成稿：对比表格 + 结论",
+        { "h": "验收标准" },
+        "发布 24h 收藏 ≥ 50，评论「求工具清单」≥ 10 条"
+      ]
+    }
+  ],
+  "monthly": [
+    { "year_month": "2026-06", "tokens": 480000000, "cost_estimate": 144.00 },
+    { "year_month": "2026-07", "tokens": 520000000, "cost_estimate": 156.00 },
+    { "year_month": "2026-08", "tokens": 470000000, "cost_estimate": 141.00 }
+  ]
+}
