@@ -121,3 +121,9 @@ export async function uploadWithToken(token, payload, verbose) {
 
   return result;
 }
+
+// 免密钥模式：读取云端已删清单（跨设备删除状态）
+export async function listDeletedProjectsToken(token) {
+  const data = await rpc('list_deleted_projects_token', { p_token: token });
+  return Array.isArray(data) ? data : [];
+}

@@ -1,6 +1,6 @@
 import { findDataFile, findWorkBuddyProjects, mergeAgentProjects } from './scanner.js';
 import { parseDataFile, buildUploadPayload } from './parser.js';
-import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects } from './uploader.js';
+import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken } from './uploader.js';
 import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
 import { daemonLoop, installService, uninstallService, statusService } from './service.js';
 import fs from 'fs';
@@ -106,6 +106,16 @@ export async function syncAction(source, options) {
 
   const doSync = async () => {
     console.log('\n📁 扫描本地数据...');
+    const cred = resolveCredential(options);
+    // 拉取云端已删清单（跨设备删除状态），合并到本机已删清单
+    let cloudDeletedKeys = [];
+    if (cred.type === 'token') {
+      try {
+        const rows = await listDeletedProjectsToken(cred.value);
+        cloudDeletedKeys = (rows || []).map(r => (r.name || '') + '::' + (r.source || 'codex'));
+        if (options.verbose && cloudDeletedKeys.length) console.log('  云端已删清单：' + cloudDeletedKeys.length + ' 条');
+      } catch(e){ if (options.verbose) console.log('  云端已删清单拉取失败（仅用本地清单）: ' + e.message); }
+    }
     let panelProjects = [];
     let topics = [];
     let monthly = {};
@@ -123,7 +133,7 @@ export async function syncAction(source, options) {
       if (options.verbose) console.log('  未发现面板数据文件，仅同步 Agent 平台解析项目: ' + err.message);
     }
     const agentProjects = findWorkBuddyProjects(options.verbose);
-    const allProjects = mergeAgentProjects(panelProjects, agentProjects);
+    const allProjects = mergeAgentProjects(panelProjects, agentProjects, cloudDeletedKeys);
     const payload = buildUploadPayload({ projects: allProjects, topics, monthly });
     const totalTokens = payload.projects.reduce((s, p) => s + (p.tokens_used || 0), 0);
 
@@ -157,7 +167,6 @@ export async function syncAction(source, options) {
       return { dry: true };
     }
 
-    const cred = resolveCredential(options);
     console.log('\n🚀 开始上传...\n');
     const result = cred.type === 'token'
       ? await uploadWithToken(cred.value, payload, options.verbose)

@@ -176,8 +176,8 @@ export function loadDeletedKeys() {
 }
 
 // 多平台轻量项目合并：保留面板既有条目，补充 WorkBuddy 等平台解析出的项目，跳过已删清单
-export function mergeAgentProjects(panelProjects, agentProjects) {
-  const deleted = loadDeletedKeys();
+export function mergeAgentProjects(panelProjects, agentProjects, extraDeleted) {
+  const deleted = new Set([...loadDeletedKeys(), ...(extraDeleted || [])]);
   const seen = new Set();
   const out = [];
   for (const p of panelProjects) {
