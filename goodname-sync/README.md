@@ -23,6 +23,17 @@ node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --service install
 
 这条指令满足安全审查的常见要求：来源是公开 GitHub 仓库（可核对作者与提交历史）、先审查再执行、密钥只写入本机文件（权限 600）、**默认不安装常驻服务**（装服务是最后可选项且可卸载）。
 
+## 免密钥模式（推荐）
+
+不再使用 API Key：在 goodname.fun 面板右上角「账号与同步密钥」点「生成安装码」（10 分钟有效、仅可使用一次），把码交给 Agent 执行：
+
+```bash
+node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --setup <安装码>
+node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --auto
+```
+
+`--setup` 会用安装码在服务端换一个 30 天有效的设备令牌并保存到本地配置（权限 600），之后同步完全不需要任何 API Key；设备令牌可在面板随时吊销。数据库侧需要先执行一次 `supabase/device_auth.sql`（建表 + RPC：create_device_code / exchange_device_code / upsert_*_token）。
+
 > 提示：也可以在自己电脑的终端里手动完成同样的步骤；官方一键脚本 `install.sh`（下载 → SHA-256 校验 → 交互输入密钥 → 装服务）仅供信任自己终端的人类用户使用，不推荐交给第三方 Agent 执行。
 
 ## 国内镜像（Gitee）

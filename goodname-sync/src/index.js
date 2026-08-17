@@ -1,6 +1,6 @@
 import { findDataFile, findWorkBuddyProjects, mergeAgentProjects } from './scanner.js';
 import { parseDataFile, buildUploadPayload } from './parser.js';
-import { uploadWithKey, getSyncStatus, listProjects } from './uploader.js';
+import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects } from './uploader.js';
 import { loadConfig, saveConfig } from './config.js';
 import { daemonLoop, installService, uninstallService, statusService } from './service.js';
 
@@ -15,6 +15,20 @@ function resolveKey(options) {
     process.exit(1);
   }
   return key;
+}
+
+// 优先使用设备令牌（免密钥模式），其次兼容旧版同步密钥
+function resolveCredential(options) {
+  const config = loadConfig();
+  if (options.key || process.env.CODEX_SYNC_KEY) {
+    return { type: 'key', value: options.key || process.env.CODEX_SYNC_KEY };
+  }
+  if (config.device_token) return { type: 'token', value: config.device_token };
+  if (config.sync_key) return { type: 'key', value: config.sync_key };
+  console.error('错误: 未配置同步凭证');
+  console.error('方式一（推荐，无需 API Key）：在面板生成一次性安装码，然后运行 node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --setup <安装码>');
+  console.error('方式二（兼容旧版）：让本机 Codex 把同步密钥保存到 ~/.goodname/config.json');
+  process.exit(1);
 }
 
 export async function syncAction(source, options) {
@@ -34,9 +48,18 @@ export async function syncAction(source, options) {
     process.exit(0);
   }
 
-  const key = resolveKey(options);
+  if (options.setup) {
+    console.log('🔑 正在兑换一次性安装码（10 分钟有效，仅可使用一次）...');
+    const token = await exchangeDeviceCode(options.setup);
+    const p = saveConfig({ device_token: token, saved_at: new Date().toISOString() });
+    console.log('✓ 设备授权成功！已保存本地设备令牌（30 天有效，可在面板吊销）');
+    console.log('  配置: ' + p);
+    console.log('  现在可运行：node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --auto');
+    process.exit(0);
+  }
 
   if (options.status) {
+    const key = resolveKey(options);
     try {
       const st = await getSyncStatus(key);
       if (st && st.error) throw new Error(st.error);
@@ -92,8 +115,11 @@ export async function syncAction(source, options) {
       return { dry: true };
     }
 
+    const cred = resolveCredential(options);
     console.log('\n🚀 开始上传...\n');
-    const result = await uploadWithKey(key, payload, options.verbose);
+    const result = cred.type === 'token'
+      ? await uploadWithToken(cred.value, payload, options.verbose)
+      : await uploadWithKey(cred.value, payload, options.verbose);
     if (options.auto) {
       console.log(`SYNCED: ${payload.projects.length}个项目, ${payload.topics.length}条选题, ${totalTokens.toLocaleString()} tokens`);
       return result;

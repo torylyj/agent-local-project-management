@@ -73,3 +73,51 @@ export async function uploadWithKey(key, payload, verbose) {
 
   return result;
 }
+
+// 免密钥模式：用一次性安装码换设备令牌
+export async function exchangeDeviceCode(code) {
+  const data = await rpc('exchange_device_code', { p_code: code });
+  if (!data || typeof data !== 'string' || !data.length) {
+    throw new Error('安装码无效或已过期（10 分钟有效，仅可使用一次）');
+  }
+  return data;
+}
+
+// 免密钥模式：用设备令牌上传（逻辑与 sync_key 版一致）
+export async function uploadWithToken(token, payload, verbose) {
+  console.log('  正在验证设备令牌...');
+  const result = { projects: { inserted: 0, updated: 0 }, topics: { inserted: 0, updated: 0 } };
+
+  if (payload.projects.length) {
+    console.log(`  正在上传 ${payload.projects.length} 个项目...`);
+    const pr = await rpc('upsert_projects_token', {
+      p_token: token,
+      v_projects: payload.projects,
+    });
+    result.projects.inserted = Number((pr || [])[0]?.inserted_count || 0);
+    result.projects.updated = Number((pr || [])[0]?.updated_count || 0);
+    console.log(`  项目上传完成：新增 ${result.projects.inserted} · 更新 ${result.projects.updated}`);
+  }
+
+  if (payload.topics.length) {
+    console.log(`  正在上传 ${payload.topics.length} 条创作选题...`);
+    const tr = await rpc('upsert_topics_token', {
+      p_token: token,
+      v_topics: payload.topics,
+    });
+    result.topics.inserted = Number((tr || [])[0]?.inserted_count || 0);
+    result.topics.updated = Number((tr || [])[0]?.updated_count || 0);
+    console.log(`  选题上传完成：新增 ${result.topics.inserted} · 更新 ${result.topics.updated}`);
+  }
+
+  if (payload.monthly.length) {
+    console.log(`  正在上传 ${payload.monthly.length} 条月度统计...`);
+    await rpc('upsert_token_monthly_token', {
+      p_token: token,
+      v_records: payload.monthly,
+    });
+    console.log('  月度统计上传完成');
+  }
+
+  return result;
+}

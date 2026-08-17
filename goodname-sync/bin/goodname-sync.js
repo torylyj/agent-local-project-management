@@ -9,6 +9,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a === '--key' || a === '-k') options.key = argv[++i];
     else if (a === '--save-key') options.saveKey = argv[++i];
+    else if (a === '--setup') options.setup = argv[++i];
     else if (a === '--file' || a === '-f') options.file = argv[++i];
     else if (a === '--dir' || a === '-d') options.dir = argv[++i];
     else if (a === '--dry-run') options.dryRun = true;
@@ -39,6 +40,7 @@ if (options.help) {
 选项:
   -k, --key <key>      同步密钥（sk_xxx），或设置环境变量 CODEX_SYNC_KEY
       --save-key <key>  保存密钥到 ~/.goodname/config.json（只需一次）
+      --setup <code>    免密钥模式：用面板生成的一次性安装码换取设备令牌（推荐）
   -f, --file <path>    直接指定数据文件（data.json 或面板 HTML）
   -d, --dir <path>     自定义数据目录路径
       --dry-run        只扫描不上传
