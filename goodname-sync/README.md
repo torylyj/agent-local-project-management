@@ -25,6 +25,14 @@ node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --service install
 
 > 提示：也可以在自己电脑的终端里手动完成同样的步骤；官方一键脚本 `install.sh`（下载 → SHA-256 校验 → 交互输入密钥 → 装服务）仅供信任自己终端的人类用户使用，不推荐交给第三方 Agent 执行。
 
+## 国内镜像（Gitee）
+
+GitHub 在大陆网络下 clone 可能较慢。官方维护 Gitee 镜像仓库（免费、需实名注册，开源中国旗下，安全可靠）：
+
+镜像仓库地址在本文档公布（创建后同步更新）；其余步骤（审查源码 / 写配置 / 一次性同步 / 可选装服务）与 GitHub 方式完全一致，镜像与 GitHub 官方仓库内容保持同步。
+
+> 其他可选国内镜像渠道（按安全性排序）：AtomGit（开源托管）、Coding（腾讯旗下 DevOps）、腾讯云 COS / 阿里云 OSS 默认域名（对象存储直链，无需备案即可公开下载）。不推荐使用 ghproxy 等第三方代理。
+
 ## 多 Agent 平台适配
 
 工具会按顺序扫描以下目录，寻找面板兼容数据（`data.json` / `codex-project-tracker.html` / `项目进度总览.html` / `panel-data.json`）：
