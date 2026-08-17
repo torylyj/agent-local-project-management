@@ -210,6 +210,16 @@ export function findWorkBuddyProjects(verbose) {
         if (at && at >= lo && at <= hi && files.length < 8) files.push(a.uri || a.name);
       });
     }
+    const criteria = [];
+    if (rec && rec.summary) criteria.push({ text: '完成会话目标：' + rec.summary.slice(0, 70), done: false });
+    if (files.length) criteria.push({ text: '会话产出文件已归档', done: true });
+    if (!criteria.length) criteria.push({ text: '会话执行完成（建议由 AI 依据会话补全验收标准）', done: false });
+    const decisions = rec ? [{
+      date: String((rec.last || rec.first || '').slice(0, 10)),
+      title: 'WorkBuddy 会话',
+      reason: rec.summary ? '会话要点：' + rec.summary.slice(0, 90) : '会话追踪记录',
+      tags: ['workbuddy']
+    }] : [];
     projects.push({
       name: sessionName(s && s.workDir, sid, updatedAt),
       dir: (s && s.workDir) || '',
@@ -224,7 +234,7 @@ export function findWorkBuddyProjects(verbose) {
         : '来自 WorkBuddy 的会话，共 ' + ((rec && rec.count) || 1) + ' 次执行。',
       agent: (rec && rec.agent) || 'workbuddy',
       milestones, next, files,
-      criteria: [], topics: [], decisions: [],
+      criteria, topics: [], decisions,
     });
   };
   for (const s of sessions) {
@@ -294,8 +304,14 @@ function uniqArr(arr, keyFn) {
 }
 
 // 把被合并项目的数据并进保留项目，并跳过被合并项目的重新生成
-export function applyMergeHistory(list) {
-  const merges = loadMergeHistory();
+export function applyMergeHistory(list, extraMerges) {
+  const seenM = new Set();
+  const merges = [...loadMergeHistory(), ...(extraMerges || [])].filter(m => {
+    const k = (m && m.keepName || '') + '|' + (m && m.removeName || '');
+    if (!k || seenM.has(k)) return false;
+    seenM.add(k);
+    return true;
+  });
   if (!merges.length || !Array.isArray(list)) return list;
   const removedKeys = new Set(
     merges.filter(m => m && m.removeName).map(m => m.removeName + '::' + (m.removeSource || 'codex'))

@@ -1,6 +1,6 @@
 import { findDataFile, findWorkBuddyProjects, mergeAgentProjects, applyMergeHistory } from './scanner.js';
 import { parseDataFile, buildUploadPayload } from './parser.js';
-import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken } from './uploader.js';
+import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken } from './uploader.js';
 import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
 import { daemonLoop, installService, uninstallService, statusService } from './service.js';
 import fs from 'fs';
@@ -109,12 +109,21 @@ export async function syncAction(source, options) {
     const cred = resolveCredential(options);
     // 拉取云端已删清单（跨设备删除状态），合并到本机已删清单
     let cloudDeletedKeys = [];
+    let cloudMerges = [];
     if (cred.type === 'token') {
       try {
         const rows = await listDeletedProjectsToken(cred.value);
         cloudDeletedKeys = (rows || []).map(r => (r.name || '') + '::' + (r.source || 'codex'));
         if (options.verbose && cloudDeletedKeys.length) console.log('  云端已删清单：' + cloudDeletedKeys.length + ' 条');
       } catch(e){ if (options.verbose) console.log('  云端已删清单拉取失败（仅用本地清单）: ' + e.message); }
+      try {
+        cloudMerges = await listMergeHistoryToken(cred.value);
+        if (options.verbose && cloudMerges.length) console.log('  云端合并历史：' + cloudMerges.length + ' 条');
+      } catch(e){ if (options.verbose) console.log('  云端合并历史拉取失败（仅用本地）: ' + e.message); }
+      try {
+        const expired = await expireHiddenProjectsToken(cred.value);
+        if (expired) console.log('  回收站到期清理：' + expired + ' 项已永久删除');
+      } catch(e){}
     }
     let panelProjects = [];
     let topics = [];
@@ -134,7 +143,7 @@ export async function syncAction(source, options) {
     }
     const agentProjects = findWorkBuddyProjects(options.verbose);
     const allProjects = mergeAgentProjects(panelProjects, agentProjects, cloudDeletedKeys);
-    const mergedProjects = applyMergeHistory(allProjects);
+    const mergedProjects = applyMergeHistory(allProjects, cloudMerges);
     const payload = buildUploadPayload({ projects: mergedProjects, topics, monthly });
     const totalTokens = payload.projects.reduce((s, p) => s + (p.tokens_used || 0), 0);
 

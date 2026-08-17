@@ -127,3 +127,19 @@ export async function listDeletedProjectsToken(token) {
   const data = await rpc('list_deleted_projects_token', { p_token: token });
   return Array.isArray(data) ? data : [];
 }
+
+// 免密钥模式：读取云端合并历史（跨设备合并生效）
+export async function listMergeHistoryToken(token) {
+  const data = await rpc('list_merge_history_token', { p_token: token });
+  return Array.isArray(data) ? data : [];
+}
+
+// 免密钥模式：服务端执行回收站到期清理
+export async function expireHiddenProjectsToken(token) {
+  try {
+    const n = await rpc('expire_hidden_projects_token', { p_token: token });
+    return Number(n) || 0;
+  } catch (e) {
+    return 0;
+  }
+}
