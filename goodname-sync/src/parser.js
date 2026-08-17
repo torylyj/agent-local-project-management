@@ -88,6 +88,20 @@ export function buildUploadPayload(data) {
   if (data.current && data.current.name) allProjects.push(data.current);
   (data.projects || []).forEach(p => allProjects.push(p));
 
+  // 规范化 payload 数组：兼容字符串条目（旧版 data.json 格式）→ 统一为标准对象
+  const normMs = (arr) => Array.isArray(arr) ? arr.filter(x => x).map(m => typeof m === 'string' ? { date: '', text: m, done: false } : m) : arr;
+  const normNext = (arr) => Array.isArray(arr) ? arr.filter(n => n).map(n => typeof n === 'string' ? { text: n, p: 'mid' } : n) : arr;
+  const normCr = (arr) => Array.isArray(arr) ? arr.filter(c => c).map(c => typeof c === 'string' ? { text: c, done: false } : c) : arr;
+  const normDec = (arr) => Array.isArray(arr) ? arr.filter(d => d).map(d => typeof d === 'string' ? { date: '', title: d, reason: '', tags: [] } : d) : arr;
+  allProjects.forEach(p => {
+    if (p && typeof p === 'object') {
+      if (Array.isArray(p.milestones)) p.milestones = normMs(p.milestones);
+      if (Array.isArray(p.next)) p.next = normNext(p.next);
+      if (Array.isArray(p.criteria)) p.criteria = normCr(p.criteria);
+      if (Array.isArray(p.decisions)) p.decisions = normDec(p.decisions);
+    }
+  });
+
   const projects = allProjects.map((p) => ({
     name: p.name,
     description: p.intro || p.description || null,
