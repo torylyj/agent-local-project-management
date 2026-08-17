@@ -29,7 +29,11 @@ node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --service install
 
 GitHub 在大陆网络下 clone 可能较慢。官方维护 Gitee 镜像仓库（免费、需实名注册，开源中国旗下，安全可靠）：
 
-镜像仓库地址在本文档公布（创建后同步更新）；其余步骤（审查源码 / 写配置 / 一次性同步 / 可选装服务）与 GitHub 方式完全一致，镜像与 GitHub 官方仓库内容保持同步。
+```bash
+git clone --depth 1 https://gitee.com/goodname13/agent-goodname-project-management.git ~/.goodname/agent-sync
+```
+
+克隆后其余步骤（审查源码 / 写配置 / 一次性同步 / 可选装服务）与 GitHub 方式完全一致。镜像与 GitHub 官方仓库内容保持同步，两者任选其一。
 
 > 其他可选国内镜像渠道（按安全性排序）：AtomGit（开源托管）、Coding（腾讯旗下 DevOps）、腾讯云 COS / 阿里云 OSS 默认域名（对象存储直链，无需备案即可公开下载）。不推荐使用 ghproxy 等第三方代理。
 
