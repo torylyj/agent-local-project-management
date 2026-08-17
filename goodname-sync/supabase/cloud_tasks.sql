@@ -105,3 +105,34 @@ END;
 $fn$;
 
 GRANT EXECUTE ON FUNCTION public.expire_hidden_projects_token(TEXT) TO anon, authenticated;
+
+-- 3) 云端项目回读（校验 WorkBuddy 详情是否真在云端）
+CREATE OR REPLACE FUNCTION public.list_projects_token(p_token TEXT)
+RETURNS TABLE(
+  name TEXT,
+  source TEXT,
+  status TEXT,
+  updated_at TIMESTAMPTZ,
+  tokens_used BIGINT,
+  payload JSONB
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $fn$
+DECLARE
+  v_user UUID;
+BEGIN
+  v_user := public.resolve_token_user(p_token);
+  IF v_user IS NULL THEN
+    RAISE EXCEPTION '设备令牌无效或已过期';
+  END IF;
+  RETURN QUERY
+  SELECT pr.name, pr.source, pr.status, pr.updated_at, pr.tokens_used, pr.payload
+  FROM public.projects pr
+  WHERE pr.user_id = v_user
+  ORDER BY pr.updated_at DESC;
+END;
+$fn$;
+
+GRANT EXECUTE ON FUNCTION public.list_projects_token(TEXT) TO anon, authenticated;

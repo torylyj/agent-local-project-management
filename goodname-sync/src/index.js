@@ -1,6 +1,6 @@
 import { findDataFile, findWorkBuddyProjects, mergeAgentProjects, applyMergeHistory } from './scanner.js';
 import { parseDataFile, buildUploadPayload } from './parser.js';
-import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken } from './uploader.js';
+import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken, listProjectsToken } from './uploader.js';
 import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
 import { daemonLoop, installService, uninstallService, statusService } from './service.js';
 import fs from 'fs';
@@ -80,6 +80,34 @@ export async function syncAction(source, options) {
 
   if (options.init) {
     initTemplate(options.dir);
+    process.exit(0);
+  }
+
+  if (options.verifyCloud) {
+    const cred = resolveCredential(options);
+    if (cred.type !== 'token') {
+      console.error('--verify-cloud 需要免密钥设备令牌模式');
+      process.exit(1);
+    }
+    const rows = await listProjectsToken(cred.value);
+    console.log('═══════════════════════════════════════');
+    console.log('  云端项目回读（设备令牌）');
+    console.log('═══════════════════════════════════════');
+    if (!rows.length) { console.log('  云端暂无项目'); process.exit(0); }
+    rows.forEach(r => {
+      const p = (r.payload && typeof r.payload === 'object') ? r.payload : {};
+      const counts = {
+        ms: Array.isArray(p.milestones) ? p.milestones.length : 0,
+        next: Array.isArray(p.next) ? p.next.length : 0,
+        criteria: Array.isArray(p.criteria) ? p.criteria.length : 0,
+        decisions: Array.isArray(p.decisions) ? p.decisions.length : 0,
+        files: Array.isArray(p.files) ? p.files.length : 0,
+        cat: p.cat || '',
+        intro: (p.intro || '').length
+      };
+      console.log('  · ' + r.name + ' [' + (r.source || '') + '] 状态:' + (r.status || '') + ' Token:' + (Number(r.tokens_used) || 0).toLocaleString());
+      console.log('      cat=' + counts.cat + ' 里程碑=' + counts.ms + ' 下一步=' + counts.next + ' 完成标准=' + counts.criteria + ' 决策=' + counts.decisions + ' 文件=' + counts.files + ' 简介长度=' + counts.intro);
+    });
     process.exit(0);
   }
 

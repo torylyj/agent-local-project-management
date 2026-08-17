@@ -143,3 +143,9 @@ export async function expireHiddenProjectsToken(token) {
     return 0;
   }
 }
+
+// 免密钥模式：云端项目回读（校验详情是否已上传）
+export async function listProjectsToken(token) {
+  const data = await rpc('list_projects_token', { p_token: token });
+  return Array.isArray(data) ? data : [];
+}

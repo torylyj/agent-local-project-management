@@ -20,6 +20,7 @@ function parseArgs(argv) {
     else if (a === '--daemon') options.daemon = true;
     else if (a === '--detect') options.detect = true;
     else if (a === '--init') options.init = true;
+    else if (a === '--verify-cloud') options.verifyCloud = true;
     else if (a === '--service') options.service = argv[++i];
     else if (a === '--help' || a === '-h') { options.help = true; }
     else if (a.startsWith('-')) { console.error('未知参数: ' + a); process.exit(1); }
@@ -54,6 +55,7 @@ if (options.help) {
       --service <act>  安装/卸载常驻服务：install | uninstall | status
       --detect         检测本机已安装的 Agent 平台
       --init           生成 data.json 上传模板（配合 --dir <目录> 使用）
+      --verify-cloud   回读云端项目详情，校验上传是否完整
 `);
   process.exit(0);
 }
