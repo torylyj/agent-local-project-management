@@ -190,18 +190,22 @@ export async function syncAction(source, options) {
     // 更名清理：旧版 WorkBuddy 用文件夹名上传，现在按会话内容生成名称。
     // 按 dir（工作目录）匹配：本地新名称与云端旧名称不同时，先删除云端旧行，避免重复。
     if (cred.type === 'token' && cloudRows.length && !options.dryRun) {
-      const cloudByDir = new Map();
+      const cloudByDir = new Map(); // dir+source -> 该会话的全部云端行（可能含多个旧名称）
       for (const r of cloudRows) {
         const pp = (r.payload && typeof r.payload === 'object') ? r.payload : {};
         const dir = pp.dir || (r.metadata && r.metadata.dir) || '';
-        if (dir) cloudByDir.set(String(dir) + '::' + (r.source || 'codex'), r);
+        if (!dir) continue;
+        const key = String(dir) + '::' + (r.source || 'codex');
+        if (!cloudByDir.has(key)) cloudByDir.set(key, []);
+        cloudByDir.get(key).push(r);
       }
       for (const p of mergedProjects) {
         if ((p.source || 'codex') === 'codex') continue;
         const dir = p.dir || (p.metadata && p.metadata.dir);
         if (!dir) continue;
-        const old = cloudByDir.get(String(dir) + '::' + (p.source || 'workbuddy'));
-        if (old && old.name && old.name !== p.name) {
+        const olds = cloudByDir.get(String(dir) + '::' + (p.source || 'workbuddy')) || [];
+        for (const old of olds) {
+          if (!old.name || old.name === p.name) continue;
           try {
             await deleteProjectToken(cred.value, old.name, old.source || 'workbuddy');
             console.log(`  ✓ 项目更名清理：${old.name} → ${p.name}（旧行已删除）`);
