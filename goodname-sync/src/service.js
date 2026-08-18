@@ -11,6 +11,7 @@ const LEGACY_PLIST_PATH = path.join(os.homedir(), 'Library', 'LaunchAgents', 'co
 const SYSTEMD_PATH = path.join(os.homedir(), '.config', 'systemd', 'user', 'goodname-agent-sync.service');
 const LEGACY_SYSTEMD_PATH = path.join(os.homedir(), '.config', 'systemd', 'user', 'goodname-codex-sync.service');
 const LOG_PATH = '/tmp/goodname-agent-sync.log';
+const WIN_TASK = 'goodname-sync';
 
 function here() {
   return fileURLToPath(new URL('../bin/goodname-sync.js', import.meta.url));
@@ -157,6 +158,18 @@ export async function installService() {
       console.log('⚠ 已生成 unit 文件：' + p);
       console.log('  请手动执行：systemctl --user daemon-reload && systemctl --user enable --now goodname-agent-sync.service');
     }
+  } else if (process.platform === 'win32') {
+    // Windows：用系统计划任务在登录时启动常驻进程（--daemon 内部处理 3 小时节奏/重试/补跑）
+    const cmd = 'schtasks /Create /F /TN "' + WIN_TASK + '" /TR "\\"' + process.execPath + '\\" \\"' + here() + '\\" --daemon" /SC ONLOGON /RL HIGHEST';
+    try {
+      execSync(cmd, { stdio: 'ignore' });
+      console.log('✓ 常驻同步服务已安装（Windows 计划任务，登录后自动运行）');
+      console.log('  每 3 小时同步一次 · 失败自动重试 · 登录/开机自动补跑');
+      console.log('  卸载：node .../goodname-sync.js --service uninstall');
+    } catch (e) {
+      console.log('⚠ 计划任务创建失败：' + (e.message || e));
+      console.log('  可手动创建：schtasks /Create /F /TN ' + WIN_TASK + ' /TR "' + process.execPath + ' ' + here() + ' --daemon" /SC ONLOGON /RL HIGHEST');
+    }
   } else {
     console.log('⚠ 当前平台暂不支持自动安装常驻服务，请用系统计划任务定时运行：');
     console.log('  node ~/.goodname/agent-sync/bin/goodname-sync.js --auto');
@@ -176,6 +189,9 @@ export async function uninstallService() {
     try { fs.unlinkSync(SYSTEMD_PATH); } catch {}
     try { fs.unlinkSync(LEGACY_SYSTEMD_PATH); } catch {}
     console.log('✓ 常驻同步服务已卸载');
+  } else if (process.platform === 'win32') {
+    try { execSync('schtasks /Delete /F /TN "' + WIN_TASK + '"', { stdio: 'ignore' }); } catch {}
+    console.log('✓ 常驻同步服务已卸载（Windows 计划任务）');
   } else {
     console.log('当前平台无自动安装的服务');
   }
@@ -195,6 +211,14 @@ export function statusService() {
       console.log('  运行状态：' + (/state = running/.test(out) ? '运行中' : '未运行'));
     } catch {
       console.log('  运行状态：未运行');
+    }
+  } else if (process.platform === 'win32') {
+    try {
+      const out = execSync('schtasks /Query /TN "' + WIN_TASK + '"', { stdio: 'pipe' }).toString();
+      console.log('  服务已安装：' + (out.includes(WIN_TASK) ? '是' : '否'));
+      console.log('  运行状态：登录后自动运行');
+    } catch {
+      console.log('  服务已安装：否');
     }
   }
   console.log('  上次同步：' + (st.last_success || '从未'));

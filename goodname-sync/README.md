@@ -39,6 +39,18 @@ node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --setup <安装�
 
 `--setup` 会用安装码在服务端换一个 30 天有效的设备令牌并保存到本地配置（权限 600），之后同步完全不需要任何 API Key；设备令牌可在面板随时吊销。数据库侧需要先执行一次 `supabase/device_auth.sql`（建表 + RPC：create_device_code / exchange_device_code / upsert_*_token）。
 
+## Windows 使用
+
+PowerShell 中执行（把 `<安装码>` 换成面板生成的码）：
+
+```powershell
+git clone --depth 1 https://gitee.com/goodname13/agent-goodname-project-management.git "$env:USERPROFILE\.goodname\agent-sync"
+node "$env:USERPROFILE\.goodname\agent-sync\goodname-sync\bin\goodname-sync.js" --setup <安装码> --auto
+node "$env:USERPROFILE\.goodname\agent-sync\goodname-sync\bin\goodname-sync.js" --service install
+```
+
+`--service install` 在 Windows 会创建系统计划任务（登录后自动运行常驻同步，每 3 小时 + 失败重试 + 开机补跑）；卸载用 `--service uninstall`。
+
 ## Agent 平台检测与未知平台上传
 
 ```bash
