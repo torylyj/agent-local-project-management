@@ -1,6 +1,6 @@
 import { findDataFile, findWorkBuddyProjects, mergeAgentProjects, applyMergeHistory } from './scanner.js';
 import { parseDataFile, buildUploadPayload } from './parser.js';
-import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken, listProjectsToken } from './uploader.js';
+import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken, listProjectsToken, cleanupDeviceTokensToken } from './uploader.js';
 import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
 import { daemonLoop, installService, uninstallService, statusService } from './service.js';
 import fs from 'fs';
@@ -151,6 +151,10 @@ export async function syncAction(source, options) {
       try {
         const expired = await expireHiddenProjectsToken(cred.value);
         if (expired) console.log('  回收站到期清理：' + expired + ' 项已永久删除');
+      } catch(e){}
+      try {
+        const cleaned = await cleanupDeviceTokensToken(cred.value);
+        if (cleaned) console.log('  设备令牌清理：' + cleaned + ' 个过期/吊销令牌已移除');
       } catch(e){}
     }
     let panelProjects = [];

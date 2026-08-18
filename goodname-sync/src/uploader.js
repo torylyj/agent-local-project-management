@@ -149,3 +149,13 @@ export async function listProjectsToken(token) {
   const data = await rpc('list_projects_token', { p_token: token });
   return Array.isArray(data) ? data : [];
 }
+
+// 免密钥模式：清理过期/已吊销的设备令牌
+export async function cleanupDeviceTokensToken(token) {
+  try {
+    const n = await rpc('cleanup_device_tokens_token', { p_token: token });
+    return Number(n) || 0;
+  } catch (e) {
+    return 0;
+  }
+}

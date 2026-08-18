@@ -19,10 +19,11 @@ ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "提交反馈" ON public.feedback;
 CREATE POLICY "提交反馈" ON public.feedback
-  FOR INSERT WITH CHECK (COALESCE(user_id::TEXT, '') = COALESCE(auth.uid()::TEXT, ''));
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "查看自己的反馈" ON public.feedback;
 CREATE POLICY "查看自己的反馈" ON public.feedback
   FOR SELECT USING (auth.uid() = user_id);
 
-GRANT INSERT, SELECT ON TABLE public.feedback TO anon, authenticated;
+REVOKE INSERT ON TABLE public.feedback FROM anon;
+GRANT INSERT, SELECT ON TABLE public.feedback TO authenticated;

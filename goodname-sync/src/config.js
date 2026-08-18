@@ -20,6 +20,7 @@ export function loadConfig() {
 export function saveConfig(obj) {
   fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(obj, null, 2), 'utf-8');
+  try { fs.chmodSync(CONFIG_PATH, 0o600); } catch (e) {} // 仅本机可读写（Windows 忽略）
   return CONFIG_PATH;
 }
 

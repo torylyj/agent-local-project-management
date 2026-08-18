@@ -136,3 +136,27 @@ END;
 $fn$;
 
 GRANT EXECUTE ON FUNCTION public.list_projects_token(TEXT) TO anon, authenticated;
+
+-- 4) 清理过期/已吊销的设备令牌
+CREATE OR REPLACE FUNCTION public.cleanup_device_tokens_token(p_token TEXT)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $fn$
+DECLARE
+  v_user UUID;
+  v_count INTEGER := 0;
+BEGIN
+  v_user := public.resolve_token_user(p_token);
+  IF v_user IS NULL THEN
+    RAISE EXCEPTION '设备令牌无效或已过期';
+  END IF;
+  DELETE FROM public.device_tokens
+  WHERE user_id = v_user AND (revoked = TRUE OR expires_at <= now());
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$fn$;
+
+GRANT EXECUTE ON FUNCTION public.cleanup_device_tokens_token(TEXT) TO anon, authenticated;
