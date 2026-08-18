@@ -21,6 +21,7 @@ function parseArgs(argv) {
     else if (a === '--detect') options.detect = true;
     else if (a === '--init') options.init = true;
     else if (a === '--verify-cloud') options.verifyCloud = true;
+    else if (a === '--verify-diff') options.verifyDiff = true;
     else if (a === '--service') options.service = argv[++i];
     else if (a === '--help' || a === '-h') { options.help = true; }
     else if (a.startsWith('-')) { console.error('未知参数: ' + a); process.exit(1); }
@@ -56,6 +57,7 @@ if (options.help) {
       --detect         检测本机已安装的 Agent 平台
       --init           生成 data.json 上传模板（配合 --dir <目录> 使用）
       --verify-cloud   回读云端项目详情，校验上传是否完整
+      --verify-diff    核对本地(字段合并后)与云端是否一致（dry-run 或上传后）
 `);
   process.exit(0);
 }

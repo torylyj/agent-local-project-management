@@ -1,5 +1,6 @@
 import { findDataFile, findAgentProjects, mergeAgentProjects, applyMergeHistory } from './scanner.js';
 import { parseDataFile, buildUploadPayload } from './parser.js';
+import { mergeCloudFields, saveMergeState, verifyDiff } from './fieldMerge.js';
 import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken, listProjectsToken, cleanupDeviceTokensToken } from './uploader.js';
 import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
 import { daemonLoop, installService, uninstallService, statusService } from './service.js';
@@ -138,6 +139,7 @@ export async function syncAction(source, options) {
     // 拉取云端已删清单（跨设备删除状态），合并到本机已删清单
     let cloudDeletedKeys = [];
     let cloudMerges = [];
+    let cloudRows = [];
     if (cred.type === 'token') {
       try {
         const rows = await listDeletedProjectsToken(cred.value);
@@ -156,6 +158,10 @@ export async function syncAction(source, options) {
         const cleaned = await cleanupDeviceTokensToken(cred.value);
         if (cleaned) console.log('  设备令牌清理：' + cleaned + ' 个过期/吊销令牌已移除');
       } catch(e){}
+      try {
+        cloudRows = await listProjectsToken(cred.value);
+        if (options.verbose) console.log('  云端项目状态拉取：' + cloudRows.length + ' 条（用于字段级合并）');
+      } catch(e){ if (options.verbose) console.log('  云端项目状态拉取失败（跳过字段合并）: ' + e.message); }
     }
     let panelProjects = [];
     let topics = [];
@@ -175,7 +181,11 @@ export async function syncAction(source, options) {
     }
     const agentProjects = findAgentProjects(options.verbose);
     const allProjects = mergeAgentProjects(panelProjects, agentProjects, cloudDeletedKeys);
-    const mergedProjects = applyMergeHistory(allProjects, cloudMerges);
+    const mergedHistory = applyMergeHistory(allProjects, cloudMerges);
+    // 字段级合并：管理字段云端优先、内容字段本地优先、冲突自动备份
+    const mergedProjects = cred.type === 'token'
+      ? mergeCloudFields(mergedHistory, cloudRows, options.verbose).projects
+      : mergedHistory;
     const payload = buildUploadPayload({ projects: mergedProjects, topics, monthly });
     const totalTokens = payload.projects.reduce((s, p) => s + (p.tokens_used || 0), 0);
 
@@ -198,6 +208,10 @@ export async function syncAction(source, options) {
 
     if (options.dryRun) {
       console.log('\n⏸️  Dry run 模式，不上传数据');
+      if (options.verifyDiff && cred.type === 'token') {
+        console.log('\n── 本地(合并后) vs 云端 差异核对 ──');
+        verifyDiff(mergedProjects, cloudRows, true);
+      }
       return { dry: true };
     }
 
@@ -205,6 +219,14 @@ export async function syncAction(source, options) {
     const result = cred.type === 'token'
       ? await uploadWithToken(cred.value, payload, options.verbose)
       : await uploadWithKey(cred.value, payload, options.verbose);
+    saveMergeState(mergedProjects);
+    if (options.verifyDiff && cred.type === 'token') {
+      try {
+        const freshRows = await listProjectsToken(cred.value);
+        console.log('\n── 上传后 本地(合并后) vs 云端 差异核对 ──');
+        verifyDiff(mergedProjects, freshRows, true);
+      } catch(e){ console.log('  ⚠ 上传后核对失败: ' + e.message); }
+    }
     if (options.auto) {
       console.log(`SYNCED: ${payload.projects.length}个项目, ${payload.topics.length}条选题, ${totalTokens.toLocaleString()} tokens`);
       return result;
@@ -285,7 +307,8 @@ function detectAgents() {
 
 function runCompletenessCheck(payload) {
   const issues = [];
-  const dateRe = /^\d{4}-\d{2}-\d{2}([T ].*)?$/;
+  // 兼容两种日期格式：YYYY-MM-DD（data.json 标准）与 MM-DD（面板源文件紧凑展示）
+  const dateRe = /^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2})([T ].*)?$/;
   const statusOk = ['todo', 'doing', 'blocked', 'hold', 'done'];
   (payload.projects || []).forEach(p => {
     const pp = (p && p.payload && typeof p.payload === 'object') ? p.payload : {};
