@@ -132,7 +132,7 @@ export function generateNamesWithCodex(projects, verbose) {
       'workspace-write',
       prompt,
     ];
-    execFile(bin, args, { timeout: 180000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+    execFile(bin, args, { timeout: 90000, maxBuffer: 4 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }, (err, stdout) => {
       if (err) {
         if (verbose) console.log('  ⚠ Codex 命名调用失败: ' + (err.message || err).slice(0, 160));
         return resolve({});
