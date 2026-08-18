@@ -2,6 +2,7 @@ import { findDataFile, findAgentProjects, mergeAgentProjects, applyMergeHistory 
 import { parseDataFile, buildUploadPayload } from './parser.js';
 import { mergeCloudFields, saveMergeState, verifyDiff, aggregateMonthly } from './fieldMerge.js';
 import { loadAgentNames, saveAgentNames, lookupName, agentNameKey, buildNamingPrompt, writePendingNames, generateNamesWithCodex } from './agentNaming.js';
+import { generateTopicsFromProjects } from './topicsGen.js';
 import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken, listProjectsToken, cleanupDeviceTokensToken, deleteProjectToken } from './uploader.js';
 import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
 import { daemonLoop, installService, uninstallService, statusService } from './service.js';
@@ -245,6 +246,10 @@ export async function syncAction(source, options) {
     const mergedProjects = cred.type === 'token'
       ? mergeCloudFields(mergedHistory, cloudRows, options.verbose).projects
       : mergedHistory;
+
+    // 创作选题自动生成：已有项目但没有对应选题时，按项目生成「选题 + 创作步骤」
+    const existingTopicProjects = new Set((topics || []).map(t => t && t.project).filter(Boolean));
+    topics = [...(topics || []), ...generateTopicsFromProjects(mergedProjects, existingTopicProjects)];
 
     // 更名清理：旧版 WorkBuddy 用文件夹名上传，现在按会话内容生成名称。
     // 按 dir（工作目录）匹配：本地新名称与云端旧名称不同时，先删除云端旧行，避免重复。

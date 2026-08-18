@@ -167,21 +167,25 @@ export function findWorkBuddyProjects(verbose) {
     const d = readJsonSafe(f);
     if (!d || !d.trace) continue;
     const sid = d.trace.sessionId;
-    const rec = bySession.get(sid) || { tokens: 0, count: 0, first: '', last: '', agent: d.trace.agentName || 'workbuddy', spans: 0, dates: [] };
+    const rec = bySession.get(sid) || { tokens: 0, count: 0, first: '', last: '', agent: d.trace.agentName || 'workbuddy', spans: 0, dates: [], items: [] };
     rec.tokens += Number(d.trace.totalTokens) || 0;
     rec.count += 1;
     rec.spans += Array.isArray(d.spans) ? d.spans.length : 0;
     if (d.trace.startedAt) rec.dates.push(d.trace.startedAt);
     if (d.trace.startedAt && (!rec.first || d.trace.startedAt < rec.first)) rec.first = d.trace.startedAt;
     if (d.trace.endedAt && d.trace.endedAt > rec.last) rec.last = d.trace.endedAt;
-    if (!rec.summary && Array.isArray(d.spans)) {
+    // 每条 trace 提取真实操作内容（用户提问），作为「操作历史」里程碑
+    let traceSummary = '';
+    if (Array.isArray(d.spans)) {
       for (const s of d.spans) {
         const input = s && (s.toolInput || s.input);
         if (!input || typeof input !== 'string') continue;
         const clean = lastUserQuery(input).replace(/\s+/g, ' ').trim().slice(0, 120);
-        if (clean && clean.length >= 4) { rec.summary = clean; break; }
+        if (clean && clean.length >= 4) { traceSummary = clean; break; }
       }
     }
+    if (traceSummary && !rec.summary) rec.summary = traceSummary;
+    if (traceSummary) rec.items.push({ date: d.trace.startedAt || '', summary: traceSummary });
     if (sid) bySession.set(sid, rec);
     else noIdTraces.push(rec);
   }
@@ -203,11 +207,12 @@ export function findWorkBuddyProjects(verbose) {
     }
     const targetSid = best ? best.conversationId : null;
     if (targetSid) {
-      const r = bySession.get(targetSid) || { tokens: 0, count: 0, first: '', last: '', agent: rec.agent, spans: 0, dates: [] };
+      const r = bySession.get(targetSid) || { tokens: 0, count: 0, first: '', last: '', agent: rec.agent, spans: 0, dates: [], items: [] };
       r.tokens += rec.tokens; r.count += rec.count; r.spans += rec.spans;
       if (rec.first && (!r.first || rec.first < r.first)) r.first = rec.first;
       if (rec.last && rec.last > r.last) r.last = rec.last;
       if (rec.dates) r.dates.push(...rec.dates);
+      if (rec.items) r.items.push(...rec.items);
       if (!r.summary && rec.summary) r.summary = rec.summary;
       bySession.set(targetSid, r);
     } else if (rec.count) {
@@ -222,6 +227,7 @@ export function findWorkBuddyProjects(verbose) {
         if (rec.first && (!prev.first || rec.first < prev.first)) prev.first = rec.first;
         if (rec.last && rec.last > prev.last) prev.last = rec.last;
         if (rec.dates) prev.dates.push(...(rec.dates || []));
+        if (rec.items) prev.items.push(...(rec.items || []));
         if (!prev.summary && rec.summary) prev.summary = rec.summary;
       } else {
         bySession.set(okey, rec);
@@ -256,11 +262,17 @@ export function findWorkBuddyProjects(verbose) {
     const startedAt = (s && s.startedAt) || (rec && rec.first);
     const updatedMs = Date.parse(updatedAt || '') || Date.now();
     const stale = Date.now() - updatedMs > 14 * DAY;
-    const milestones = (rec && Array.isArray(rec.dates) ? rec.dates : []).slice(-5).map(dt => ({
-      date: String(dt || '').slice(0, 10),
-      text: 'WorkBuddy 会话执行（' + ((rec && rec.spans && rec.count) ? Math.max(1, Math.round(rec.spans / rec.count)) : 1) + ' 次操作）',
+    // 里程碑 = 真实操作历史（每条 trace 的实际用户任务）；无内容时回退为会话执行记录
+    const msItems = (rec && Array.isArray(rec.items) && rec.items.length) ? rec.items.slice(-8) : [];
+    const milestones = msItems.length ? msItems.map(it => ({
+      date: String(it.date || '').slice(0, 10),
+      text: it.summary ? '推进：' + it.summary.slice(0, 42) : 'WorkBuddy 会话执行',
       done: true
-    }));
+    })) : ((rec && Array.isArray(rec.dates) ? rec.dates : []).slice(-5).map(dt => ({
+      date: String(dt || '').slice(0, 10),
+      text: 'WorkBuddy 会话执行',
+      done: true
+    })));
     const next = [];
     if (rec && rec.summary) next.push({ text: '继续推进会话目标：' + rec.summary.slice(0, 90), p: 'mid' });
     if (stale) next.push({ text: '该会话已超过 14 天未更新，请核对产出并决定继续或归档', p: 'low' });
