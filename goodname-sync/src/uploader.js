@@ -150,6 +150,16 @@ export async function listProjectsToken(token) {
   return Array.isArray(data) ? data : [];
 }
 
+// 免密钥模式：按 name+source 删除自己的云端项目（用于旧文件夹名 → 新内容名的更名清理）
+export async function deleteProjectToken(token, name, source) {
+  const data = await rpc('delete_project_token', {
+    p_token: token,
+    p_name: name || '',
+    p_source: source || 'codex',
+  });
+  return data === true;
+}
+
 // 免密钥模式：清理过期/已吊销的设备令牌
 export async function cleanupDeviceTokensToken(token) {
   try {

@@ -104,6 +104,24 @@ function sessionName(workDir, sid, updatedAt) {
   return 'WorkBuddy 会话 · ' + sid.slice(0, 8);
 }
 
+// 从会话内容（真实用户提问）提炼项目名：去掉请求套话、只取第一句、控制在 28 字内
+export function deriveProjectName(summary) {
+  if (!summary) return '';
+  let s = String(summary).trim();
+  if (s.length < 4) return '';
+  s = s.replace(/^(请帮我|请你|麻烦你|帮我一下|帮我|帮忙|拜托|能否|能不能|可以帮我|请)/, '');
+  s = s.replace(/^(把|将|给|为|对)/, '');
+  s = s.replace(/[。！？!?；;，,、][\s\S]*$/, ''); // 只取第一句
+  s = s.trim();
+  if (s.length > 28) {
+    const cut = s.slice(0, 28);
+    const idx = Math.max(cut.lastIndexOf('，'), cut.lastIndexOf(','), cut.lastIndexOf(' '), cut.lastIndexOf('：'), cut.lastIndexOf(':'));
+    s = idx > 12 ? cut.slice(0, idx) : cut;
+  }
+  s = s.replace(/[，,、\s:：\-—]+$/, '').trim();
+  return s.length >= 4 ? s : '';
+}
+
 function inferCat(dir, summary) {
   const s = String(dir || '') + ' ' + String(summary || '');
   if (/transcrib|转录|视频|动画|剪辑|配音/i.test(s)) return 'video';
@@ -236,8 +254,9 @@ export function findWorkBuddyProjects(verbose) {
       reason: rec.summary ? '会话要点：' + rec.summary.slice(0, 90) : '会话追踪记录',
       tags: ['workbuddy']
     }] : [];
+    const derivedName = rec && deriveProjectName(rec.summary);
     projects.push({
-      name: sessionName(s && s.workDir, sid, updatedAt),
+      name: (derivedName || sessionName(s && s.workDir, sid, updatedAt)).slice(0, 40),
       dir: (s && s.workDir) || '',
       source: 'workbuddy',
       cat: inferCat(s && s.workDir, rec && rec.summary),
@@ -383,7 +402,7 @@ export function findGenericAgentProjects(label, roots, verbose) {
         const summary = genericSummary(rec);
         const workDir = String(pick(rec, ['workDir', 'workdir', 'cwd', 'directory', 'workspace', 'workspaceFolder']) || '');
         const baseName = workDir ? path.basename(workDir) : '';
-        const pname = name ||
+        const pname = deriveProjectName(summary) || name ||
           (baseName && baseName !== '.' ? label + ' · ' + baseName : label + ' 会话' + (startedAt ? ' · ' + startedAt.slice(0, 10) : ''));
         const stale = updatedAt ? Date.now() - Date.parse(updatedAt) > 14 * 86400000 : false;
         const milestones = (startedAt || updatedAt) ? [{

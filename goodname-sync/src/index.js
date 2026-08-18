@@ -1,7 +1,7 @@
 import { findDataFile, findAgentProjects, mergeAgentProjects, applyMergeHistory } from './scanner.js';
 import { parseDataFile, buildUploadPayload } from './parser.js';
-import { mergeCloudFields, saveMergeState, verifyDiff } from './fieldMerge.js';
-import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken, listProjectsToken, cleanupDeviceTokensToken } from './uploader.js';
+import { mergeCloudFields, saveMergeState, verifyDiff, aggregateMonthly } from './fieldMerge.js';
+import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken, listProjectsToken, cleanupDeviceTokensToken, deleteProjectToken } from './uploader.js';
 import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
 import { daemonLoop, installService, uninstallService, statusService } from './service.js';
 import fs from 'fs';
@@ -186,7 +186,34 @@ export async function syncAction(source, options) {
     const mergedProjects = cred.type === 'token'
       ? mergeCloudFields(mergedHistory, cloudRows, options.verbose).projects
       : mergedHistory;
+
+    // 更名清理：旧版 WorkBuddy 用文件夹名上传，现在按会话内容生成名称。
+    // 按 dir（工作目录）匹配：本地新名称与云端旧名称不同时，先删除云端旧行，避免重复。
+    if (cred.type === 'token' && cloudRows.length && !options.dryRun) {
+      const cloudByDir = new Map();
+      for (const r of cloudRows) {
+        const pp = (r.payload && typeof r.payload === 'object') ? r.payload : {};
+        const dir = pp.dir || (r.metadata && r.metadata.dir) || '';
+        if (dir) cloudByDir.set(String(dir) + '::' + (r.source || 'codex'), r);
+      }
+      for (const p of mergedProjects) {
+        if ((p.source || 'codex') === 'codex') continue;
+        const dir = p.dir || (p.metadata && p.metadata.dir);
+        if (!dir) continue;
+        const old = cloudByDir.get(String(dir) + '::' + (p.source || 'workbuddy'));
+        if (old && old.name && old.name !== p.name) {
+          try {
+            await deleteProjectToken(cred.value, old.name, old.source || 'workbuddy');
+            console.log(`  ✓ 项目更名清理：${old.name} → ${p.name}（旧行已删除）`);
+          } catch (e) {
+            if (options.verbose) console.log('  ⚠ 旧行删除失败（需执行 rename_cleanup.sql）: ' + (e.message || e));
+          }
+        }
+      }
+    }
+
     const payload = buildUploadPayload({ projects: mergedProjects, topics, monthly });
+    payload.monthly = aggregateMonthly(payload);
     const totalTokens = payload.projects.reduce((s, p) => s + (p.tokens_used || 0), 0);
 
     // 完整性自检：字段齐全性 / 取值合法性 / 格式
