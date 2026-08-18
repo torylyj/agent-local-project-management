@@ -8,6 +8,14 @@ function expandPath(p) {
   return p;
 }
 
+// 稳定哈希：用于孤儿会话（无 sessionId）的稳定 ID，保证多次扫描/多台设备命名一致
+function stableHash(s) {
+  let h = 5381;
+  const str = String(s || '');
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
 function walk(dir, depth, maxDepth, out) {
   if (depth > maxDepth) return;
   let entries;
@@ -203,7 +211,21 @@ export function findWorkBuddyProjects(verbose) {
       if (!r.summary && rec.summary) r.summary = rec.summary;
       bySession.set(targetSid, r);
     } else if (rec.count) {
-      bySession.set('orphan:' + (rec.first || Date.now()) + ':' + Math.random().toString(36).slice(2, 6), rec);
+      // 孤儿会话：用内容稳定哈希做 ID（不再带 Math.random 随机后缀），
+      // 保证同一会话多次扫描 / 多台设备生成的 key 一致，Agent 命名才能稳定匹配。
+      const okey = 'orphan:' + stableHash((rec.first || '') + '|' + (rec.summary || '') + '|' + (rec.last || ''));
+      const prev = bySession.get(okey);
+      if (prev) {
+        prev.tokens += rec.tokens;
+        prev.count += rec.count;
+        prev.spans += rec.spans;
+        if (rec.first && (!prev.first || rec.first < prev.first)) prev.first = rec.first;
+        if (rec.last && rec.last > prev.last) prev.last = rec.last;
+        if (rec.dates) prev.dates.push(...(rec.dates || []));
+        if (!prev.summary && rec.summary) prev.summary = rec.summary;
+      } else {
+        bySession.set(okey, rec);
+      }
     }
   }
   // 3) artifact-index：真实产出文件（按时间窗归属会话）
@@ -483,6 +505,7 @@ export function loadDeletedKeys() {
 export function mergeAgentProjects(panelProjects, agentProjects, extraDeleted) {
   const deleted = new Set([...loadDeletedKeys(), ...(extraDeleted || [])]);
   const seen = new Set();
+  const indexByKey = new Map();
   const out = [];
   for (const p of panelProjects) {
     const key = (p.name || '') + '::' + (p.source || 'codex');
@@ -490,15 +513,38 @@ export function mergeAgentProjects(panelProjects, agentProjects, extraDeleted) {
     seen.add(key);
     if (deleted.has(key)) continue;
     out.push(p);
+    indexByKey.set(key, out.length - 1);
   }
   for (const p of (agentProjects || [])) {
     const key = (p.name || '') + '::' + (p.source || 'agent');
-    if (!key || seen.has(key)) continue;
+    if (!key || deleted.has(key)) continue;
+    // 同名会话（同属一个项目）累加合并，而不是丢弃：Token/对话数/文件/里程碑等全部合并
+    if (indexByKey.has(key)) {
+      mergeAgentProject(out[indexByKey.get(key)], p);
+      continue;
+    }
+    if (seen.has(key)) continue;
     seen.add(key);
-    if (deleted.has(key)) continue;
     out.push(p);
+    indexByKey.set(key, out.length - 1);
   }
   return out;
+}
+
+function mergeAgentProject(base, p) {
+  if (!base || !p || typeof p !== 'object') return base;
+  base.tokens = (Number(base.tokens) || 0) + (Number(p.tokens) || 0);
+  base.conv = (Number(base.conv) || 0) + (Number(p.conv) || 0);
+  base.milestones = uniqArr([...(base.milestones || []), ...(p.milestones || [])], x => (x && x.text) || '');
+  base.next = uniqArr([...(base.next || []), ...(p.next || [])], x => (x && x.text) || '');
+  base.criteria = uniqArr([...(base.criteria || []), ...(p.criteria || [])], x => (x && x.text) || '');
+  base.files = uniqArr([...(base.files || []), ...(p.files || [])], f => String(f || ''));
+  base.topics = uniqArr([...(base.topics || []), ...(p.topics || [])], t => String(t || ''));
+  base.decisions = uniqArr([...(base.decisions || []), ...(p.decisions || [])], x => (x && (x.title || x.decision)) || '');
+  if (!base.intro && p.intro) base.intro = p.intro;
+  if (String(p.updated || '').localeCompare(String(base.updated || '')) > 0) base.updated = p.updated;
+  base.urgency = Math.max(Number(base.urgency || 0), Number(p.urgency || 0));
+  return base;
 }
 
 // 合并历史：~/.goodname/merges.json（网页合并时由 hook 记录），供扫描时重新应用
