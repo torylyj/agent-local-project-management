@@ -203,6 +203,11 @@ export async function syncAction(source, options) {
     const agentProjects = findAgentProjects(options.verbose);
     // —— Agent 命名：先识别项目、生成正式名称，再决定是否上传 ——
     const agentNames = loadAgentNames();
+    // 先应用已有 Agent 命名（project-names.json），再判断哪些仍未命名
+    for (const p of agentProjects) {
+      const nm = lookupName(p, agentNames);
+      if (nm) p.name = nm.slice(0, 40);
+    }
     const unnamedKeys = new Set();
     for (const p of agentProjects) {
       if (!lookupName(p, agentNames)) unnamedKeys.add(agentNameKey(p) || p.name);
