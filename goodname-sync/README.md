@@ -103,6 +103,27 @@ git clone --depth 1 https://gitee.com/goodname13/agent-goodname-project-manageme
 
 任何平台只要在工作目录产出 `data.json`（`projects` / `topics` / `monthly` 结构），都可以用 `--dir <工作目录>` 指定同步；也可以把面板源文件复制到该平台工作区，工具会自动发现。
 
+### Agent 项目命名（先识别项目，再上传）
+
+WorkBuddy 等平台没有标题字段，项目名由 **Agent 识别会话内容后生成**，不会直接用提问原文或文件夹名上传：
+
+```bash
+# 方式一：输出命名清单，交给任意 Agent 生成项目名
+node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --generate-names
+# 把 Agent 返回的 JSON 保存为 ~/.goodname/project-names.json，再重新同步
+
+# 方式二：本机装有 Codex 时，同步时自动调用 Codex 生成项目名
+node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --auto --ai-names
+```
+
+`~/.goodname/project-names.json` 结构（key 为会话 ID 或工作目录）：
+
+```json
+{ "names": { "<会话ID或工作目录>": "正式项目名" } }
+```
+
+未生成项目名的会话会**暂缓上传**（不会硬传占位名），命名完成后重新同步即可；更名后旧的占位名行会被自动清理。
+
 ## 使用
 
 安装前先完成：
