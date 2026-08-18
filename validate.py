@@ -65,17 +65,8 @@ def check_project(pr, tag, months, seen):
         err(f"{tag}.files 必须是数组")
 
 
-def main(path="data.json"):
-    p = Path(path)
-    if not p.exists():
-        err(f"找不到 {path}")
-        return False
-    try:
-        data = json.loads(p.read_text(encoding="utf-8"))
-    except Exception as e:
-        err(f"JSON 解析失败：{e}")
-        return False
-
+def _check_top_level(data, months):
+    """检查顶层字段与 months 结构。"""
     for key in ["updated", "months", "projects", "topics", "news"]:
         if key not in data:
             err(f"缺少顶层字段 {key}")
@@ -86,13 +77,9 @@ def main(path="data.json"):
     if not isinstance(data.get("projects", []), list):
         err("projects 必须是数组")
 
-    months = data.get("months", [])
-    seen = set()
-    for i, pr in enumerate(data.get("projects", [])):
-        check_project(pr, f"projects[{i}]", months, seen)
-    if data.get("current") is not None:
-        check_project(data["current"], "current", months, seen)
 
+def _check_empty(data, months):
+    """检查 empty 空对话条目。"""
     eseen = set()
     for i, e in enumerate(data.get("empty", [])):
         tag = f"empty[{i}]"
@@ -107,6 +94,9 @@ def main(path="data.json"):
         if not isinstance(e.get("count"), int):
             err(f"{tag} count 必须是整数")
 
+
+def _check_topics(data):
+    """检查 topics 创作选题结构。"""
     for i, t in enumerate(data.get("topics", [])):
         tag = f"topics[{i}]"
         for key in ["title", "type", "desc", "project"]:
@@ -115,6 +105,9 @@ def main(path="data.json"):
         if not isinstance(t.get("plan", []), list):
             err(f"{tag} plan 必须是数组")
 
+
+def _check_news(data):
+    """检查 news 新闻条目结构。"""
     for i, n in enumerate(data.get("news", [])):
         tag = f"news[{i}]"
         for key in ["date", "source", "title", "url"]:
@@ -123,6 +116,29 @@ def main(path="data.json"):
         url = n.get("url", "")
         if url and not str(url).startswith("http"):
             err(f"{tag} url 必须是 http(s) 链接")
+
+
+def main(path="data.json"):
+    p = Path(path)
+    if not p.exists():
+        err(f"找不到 {path}")
+        return False
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception as e:
+        err(f"JSON 解析失败：{e}")
+        return False
+
+    months = data.get("months", [])
+    _check_top_level(data, months)
+    seen = set()
+    for i, pr in enumerate(data.get("projects", [])):
+        check_project(pr, f"projects[{i}]", months, seen)
+    if data.get("current") is not None:
+        check_project(data["current"], "current", months, seen)
+    _check_empty(data, months)
+    _check_topics(data)
+    _check_news(data)
 
     print(f"校验完成：{len(errors)} 个错误，{len(warnings)} 个警告")
     for w in warnings:

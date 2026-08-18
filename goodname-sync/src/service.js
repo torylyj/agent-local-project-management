@@ -10,7 +10,10 @@ const PLIST_PATH = path.join(os.homedir(), 'Library', 'LaunchAgents', 'com.goodn
 const LEGACY_PLIST_PATH = path.join(os.homedir(), 'Library', 'LaunchAgents', 'com.goodname.codex-sync.plist');
 const SYSTEMD_PATH = path.join(os.homedir(), '.config', 'systemd', 'user', 'goodname-agent-sync.service');
 const LEGACY_SYSTEMD_PATH = path.join(os.homedir(), '.config', 'systemd', 'user', 'goodname-codex-sync.service');
-const LOG_PATH = '/tmp/goodname-agent-sync.log';
+const LOG_PATH =
+  process.platform === 'win32'
+    ? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'goodname', 'agent-sync.log')
+    : '/tmp/goodname-agent-sync.log';
 const WIN_TASK = 'goodname-sync';
 
 function here() {
@@ -92,9 +95,9 @@ function writePlist() {
   <key>KeepAlive</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>/tmp/goodname-agent-sync.log</string>
+  <string>${LOG_PATH}</string>
   <key>StandardErrorPath</key>
-  <string>/tmp/goodname-agent-sync.log</string>
+  <string>${LOG_PATH}</string>
 </dict>
 </plist>
 `;
@@ -165,6 +168,7 @@ export async function installService() {
       execSync(cmd, { stdio: 'ignore' });
       console.log('✓ 常驻同步服务已安装（Windows 计划任务，登录后自动运行）');
       console.log('  每 3 小时同步一次 · 失败自动重试 · 登录/开机自动补跑');
+      console.log('  日志：' + LOG_PATH);
       console.log('  卸载：node .../goodname-sync.js --service uninstall');
     } catch (e) {
       console.log('⚠ 计划任务创建失败：' + (e.message || e));

@@ -54,23 +54,19 @@ def month_key(path):
         return None
 
 
-def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
-    src_path = Path(sys.argv[1])
-    sessions_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else Path.home() / ".codex/sessions"
-    src = src_path.read_text(encoding="utf-8")
-
-    # 项目 id -> dir（取每个 dir 前最近的 id 字段）
+def _collect_id_dirs(src):
+    """解析面板源：项目 id -> 项目 dir（取每个 dir 前最近的 id 字段）。"""
     id_dirs = {}
     for m in re.finditer(r"dir: '([^']+)'", src):
         before = src[:m.start()]
         im = list(re.finditer(r"id: '([A-Za-z0-9_]+)'", before))
         if im:
             id_dirs[im[-1].group(1)] = m.group(1)
+    return id_dirs
 
-    # 会话按 cwd 聚合
+
+def _collect_groups(sessions_dir):
+    """按会话工作目录聚合 Token 用量，同时统计月份累计。"""
     groups = {}
     monthly = {}
     for f in sessions_dir.rglob("*.jsonl"):
@@ -94,8 +90,11 @@ def main():
             ym = month_key(Path(f))
             if ym:
                 monthly[ym] = monthly.get(ym, 0) + t
+    return groups, monthly
 
-    # 归属项目：会话 cwd 与项目 dir 互相包含即匹配
+
+def _assign_projects(groups, id_dirs):
+    """归属项目：会话 cwd 与项目 dir 互相包含即匹配，返回（归属, 未归属）。"""
     per_project = {}
     unmatched = []
     for cwd, total in groups.items():
@@ -108,8 +107,11 @@ def main():
             per_project[matched] = per_project.get(matched, 0) + total
         else:
             unmatched.append((cwd, total))
+    return per_project, unmatched
 
-    # 回写源文件
+
+def _write_back(src, per_project):
+    """回写各项目 tokens 字段，返回更新后的源码。"""
     for pid, val in per_project.items():
         if pid == "now":
             pat = re.compile(r"(const current = \{[^}]{0,4000}?tokens: )(\d+|null)", re.S)
@@ -118,8 +120,11 @@ def main():
         src, n = pat.subn(lambda m: m.group(1) + str(val), src)
         if not n:
             print("WARN: 未能回写", pid)
+    return src
 
-    # 回写月度用量（保留源文件已有的历史月份，仅更新有会话数据的月份）
+
+def _write_monthly(src, monthly):
+    """回写月度用量（保留历史月份，仅更新有会话数据的月份）。"""
     mt_match = re.search(r"const MONTHLY_TOKENS = (\{[^}]*\})", src)
     mt = {}
     if mt_match:
@@ -138,8 +143,24 @@ def main():
             print("月度回写：")
             for k in sorted(mt):
                 print("  %s: %d" % (k, mt[k]))
+    return src
 
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+    src_path = Path(sys.argv[1])
+    sessions_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else Path.home() / ".codex/sessions"
+    src = src_path.read_text(encoding="utf-8")
+
+    id_dirs = _collect_id_dirs(src)
+    groups, monthly = _collect_groups(sessions_dir)
+    per_project, unmatched = _assign_projects(groups, id_dirs)
+    src = _write_back(src, per_project)
+    src = _write_monthly(src, monthly)
     src_path.write_text(src, encoding="utf-8")
+
     print("回写完成：")
     for pid in sorted(per_project):
         print("  %s: %d" % (pid, per_project[pid]))
