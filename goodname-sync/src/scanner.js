@@ -262,9 +262,11 @@ export function findWorkBuddyProjects(verbose) {
       reason: rec.summary ? '会话要点：' + rec.summary.slice(0, 90) : '会话追踪记录',
       tags: ['workbuddy']
     }] : [];
-    const derivedName = rec && deriveProjectName(rec.summary);
     projects.push({
-      name: (derivedName || sessionName(s && s.workDir, sid, updatedAt)).slice(0, 40),
+      // 名称一律由 Agent 命名模块覆盖（project-names.json / Codex 生成）；
+      // 未命名前只用中性日期占位，绝不把提问原文或文件夹名直接当项目名上传。
+      name: sessionName(s && s.workDir, sid, updatedAt).slice(0, 40),
+      sid,
       dir: (s && s.workDir) || '',
       source: 'workbuddy',
       cat: inferCat(s && s.workDir, rec && rec.summary),
@@ -410,7 +412,7 @@ export function findGenericAgentProjects(label, roots, verbose) {
         const summary = genericSummary(rec);
         const workDir = String(pick(rec, ['workDir', 'workdir', 'cwd', 'directory', 'workspace', 'workspaceFolder']) || '');
         const baseName = workDir ? path.basename(workDir) : '';
-        const pname = deriveProjectName(summary) || name ||
+        const pname = name ||
           (baseName && baseName !== '.' ? label + ' · ' + baseName : label + ' 会话' + (startedAt ? ' · ' + startedAt.slice(0, 10) : ''));
         const stale = updatedAt ? Date.now() - Date.parse(updatedAt) > 14 * 86400000 : false;
         const milestones = (startedAt || updatedAt) ? [{
@@ -434,6 +436,7 @@ export function findGenericAgentProjects(label, roots, verbose) {
         }];
         projects.push({
           name: pname.slice(0, 60),
+          sid: id,
           dir: workDir,
           source: label,
           cat: inferCat(workDir, summary),

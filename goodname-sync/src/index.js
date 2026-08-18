@@ -1,6 +1,7 @@
 import { findDataFile, findAgentProjects, mergeAgentProjects, applyMergeHistory } from './scanner.js';
 import { parseDataFile, buildUploadPayload } from './parser.js';
 import { mergeCloudFields, saveMergeState, verifyDiff, aggregateMonthly } from './fieldMerge.js';
+import { loadAgentNames, saveAgentNames, lookupName, agentNameKey, buildNamingPrompt, writePendingNames, generateNamesWithCodex } from './agentNaming.js';
 import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken, listProjectsToken, cleanupDeviceTokensToken, deleteProjectToken } from './uploader.js';
 import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
 import { daemonLoop, installService, uninstallService, statusService } from './service.js';
@@ -76,6 +77,26 @@ export async function syncAction(source, options) {
 
   if (options.detect) {
     detectAgents();
+    process.exit(0);
+  }
+
+  if (options.generateNames) {
+    const agentProjects = findAgentProjects(options.verbose);
+    const withKeys = (agentProjects || []).filter(p => agentNameKey(p));
+    if (!withKeys.length) {
+      console.log('未发现需要命名的 Agent 会话项目。');
+      process.exit(0);
+    }
+    writePendingNames(withKeys);
+    console.log('═══════════════════════════════════════');
+    console.log('  Agent 项目命名清单（请把下面内容交给任意 Agent 生成项目名）');
+    console.log('═══════════════════════════════════════');
+    console.log('');
+    console.log(buildNamingPrompt(withKeys));
+    console.log('');
+    console.log('把 Agent 返回的 JSON 保存为 ~/.goodname/project-names.json，');
+    console.log('或直接告诉 Agent 写入该文件，然后重新同步即可用正式项目名上传。');
+    console.log('本机有 Codex 时，也可直接运行：node .../goodname-sync.js --auto --ai-names');
     process.exit(0);
   }
 
@@ -180,8 +201,41 @@ export async function syncAction(source, options) {
       if (options.verbose) console.log('  未发现面板数据文件，仅同步 Agent 平台解析项目: ' + err.message);
     }
     const agentProjects = findAgentProjects(options.verbose);
-    const allProjects = mergeAgentProjects(panelProjects, agentProjects, cloudDeletedKeys);
-    const mergedHistory = applyMergeHistory(allProjects, cloudMerges);
+    // —— Agent 命名：先识别项目、生成正式名称，再决定是否上传 ——
+    const agentNames = loadAgentNames();
+    const unnamedKeys = new Set();
+    for (const p of agentProjects) {
+      if (!lookupName(p, agentNames)) unnamedKeys.add(agentNameKey(p) || p.name);
+    }
+    if (unnamedKeys.size) {
+      writePendingNames(agentProjects);
+      if (options.aiNames && !options.dryRun) {
+        console.log(`  🤖 正在调用本地 Agent（Codex）为 ${unnamedKeys.size} 个会话生成项目名…`);
+        const names = await generateNamesWithCodex(agentProjects, options.verbose);
+        if (Object.keys(names).length) {
+          const merged = { ...agentNames, ...names };
+          saveAgentNames(merged);
+          let got = 0;
+          for (const p of agentProjects) {
+            const nm = lookupName(p, merged);
+            if (nm) { p.name = nm.slice(0, 40); got++; }
+          }
+          unnamedKeys.clear();
+          for (const p of agentProjects) {
+            if (!lookupName(p, merged)) unnamedKeys.add(agentNameKey(p) || p.name);
+          }
+          console.log(`  ✓ 已为 ${got} 个会话生成项目名并保存到 ~/.goodname/project-names.json`);
+        }
+      }
+      if (unnamedKeys.size) {
+        console.log(`  ⏸ ${unnamedKeys.size} 个会话尚未生成项目名，已暂缓上传（不会用提问/文件夹名硬传）`);
+        console.log('    运行 --generate-names 查看命名清单，或让 Agent 生成 ~/.goodname/project-names.json 后重新同步');
+      }
+    }
+    // 未命名的会话不进入上传清单（先生成名称，再上传）
+    const namedAgentProjects = agentProjects.filter(p => !unnamedKeys.has(agentNameKey(p) || p.name));
+    const allNamedProjects = mergeAgentProjects(panelProjects, namedAgentProjects, cloudDeletedKeys);
+    const mergedHistory = applyMergeHistory(allNamedProjects, cloudMerges);
     // 字段级合并：管理字段云端优先、内容字段本地优先、冲突自动备份
     const mergedProjects = cred.type === 'token'
       ? mergeCloudFields(mergedHistory, cloudRows, options.verbose).projects

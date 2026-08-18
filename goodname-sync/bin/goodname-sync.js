@@ -22,6 +22,8 @@ function parseArgs(argv) {
     else if (a === '--init') options.init = true;
     else if (a === '--verify-cloud') options.verifyCloud = true;
     else if (a === '--verify-diff') options.verifyDiff = true;
+    else if (a === '--ai-names') options.aiNames = true;
+    else if (a === '--generate-names') options.generateNames = true;
     else if (a === '--service') options.service = argv[++i];
     else if (a === '--help' || a === '-h') { options.help = true; }
     else if (a.startsWith('-')) { console.error('未知参数: ' + a); process.exit(1); }
@@ -58,6 +60,8 @@ if (options.help) {
       --init           生成 data.json 上传模板（配合 --dir <目录> 使用）
       --verify-cloud   回读云端项目详情，校验上传是否完整
       --verify-diff    核对本地(字段合并后)与云端是否一致（dry-run 或上传后）
+      --ai-names       自动调用本机 Codex 为 Agent 会话生成项目名（未命名会话暂缓上传）
+      --generate-names 输出 Agent 项目命名清单，交给任意 Agent 生成名称后保存为 project-names.json
 `);
   process.exit(0);
 }
