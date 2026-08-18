@@ -1,6 +1,6 @@
 # goodname-sync
 
-零依赖 CLI：把本地**多 Agent 平台**的项目数据同步到 goodname.fun 项目管理面板。已内置适配：Codex、Cursor、WorkBuddy、百度搭子（DuMate）、QClaw、AutoClaw / OpenClaw。支持 macOS（LaunchAgent）与 Linux（systemd user unit）常驻服务：每 3 小时同步一次、失败自动重试、登录/开机自动补跑。
+零依赖 CLI：把本地**多 Agent 平台**的项目数据同步到 goodname.fun 项目管理面板。已内置适配：Codex、Cursor、WorkBuddy、百度搭子（DuMate）、QClaw、AutoClaw / OpenClaw。支持 macOS（LaunchAgent）、Linux（systemd user unit）与 Windows（计划任务）常驻服务：每 3 小时同步一次、失败自动重试、登录/开机自动补跑。
 
 ## 安装（交给 Agent 的安全指令）
 
@@ -41,7 +41,17 @@ node ~/.goodname/agent-sync/goodname-sync/bin/goodname-sync.js --setup <安装�
 
 ## Windows 使用
 
-PowerShell 中执行（把 `<安装码>` 换成面板生成的码）：
+方式一：一键脚本（Windows 10 1803+ 自带 `tar`），右键「使用 PowerShell 运行」或：
+
+```powershell
+# 免密钥模式（推荐）：下载 → SHA-256 校验 → 安装码授权 → 计划任务 → 首次同步
+powershell -ExecutionPolicy Bypass -File install.ps1 -SetupCode <安装码>
+
+# 旧版同步密钥模式
+powershell -ExecutionPolicy Bypass -File install.ps1 -Key sk_xxx
+```
+
+方式二：手动分步（PowerShell）：
 
 ```powershell
 git clone --depth 1 https://gitee.com/goodname13/agent-goodname-project-management.git "$env:USERPROFILE\.goodname\agent-sync"
@@ -49,7 +59,7 @@ node "$env:USERPROFILE\.goodname\agent-sync\goodname-sync\bin\goodname-sync.js" 
 node "$env:USERPROFILE\.goodname\agent-sync\goodname-sync\bin\goodname-sync.js" --service install
 ```
 
-`--service install` 在 Windows 会创建系统计划任务（登录后自动运行常驻同步，每 3 小时 + 失败重试 + 开机补跑）；卸载用 `--service uninstall`。
+`--service install` 在 Windows 会创建系统计划任务（登录后自动运行常驻同步，每 3 小时 + 失败重试 + 开机补跑，普通用户无管理员权限时自动降级重试）；卸载用 `--service uninstall`。Windows 日志写入 `%LOCALAPPDATA%\goodname\agent-sync.log`。
 
 ## Agent 平台检测与未知平台上传
 
@@ -83,11 +93,13 @@ git clone --depth 1 https://gitee.com/goodname13/agent-goodname-project-manageme
 | 平台 | 扫描目录 | 说明 |
 | --- | --- | --- |
 | Codex | `~/.codex/visualizations`、`~/Documents/Codex` | 面板源文件直接读取 |
-| Cursor | `~/.cursor`、`~/Documents/Cursor` | 面板兼容文件直接读取 |
+| Cursor | `~/.cursor`、`~/Documents/Cursor` | 面板兼容文件直接读取 + 会话/项目 JSON 启发式解析 |
 | WorkBuddy | `~/.workbuddy` | **内置适配**：解析 `sessions.json` + `traces/*.json`，自动把会话聚合为项目（Token / 次数 / 时间 / 工作目录） |
-| 百度搭子 DuMate | `~/.dumate`、`~/.du-mate`、`~/.baidu-dazhi`、`~/.baidu-dazi` | 发现面板兼容文件则读取 |
-| QClaw | `~/.qclaw`、`~/.QClaw` | 发现面板兼容文件则读取 |
-| AutoClaw / OpenClaw | `~/.openclaw`、`~/.autoclaw`、`~/.auto-claw` | 发现面板兼容文件则读取 |
+| 百度搭子 DuMate | `~/.dumate`、`~/.du-mate`、`~/.baidu-dazhi`、`~/.baidu-dazi` | 面板兼容文件 + 会话/项目 JSON 启发式解析 |
+| QClaw | `~/.qclaw`、`~/.QClaw` | 面板兼容文件 + 会话/项目 JSON 启发式解析 |
+| AutoClaw / OpenClaw | `~/.openclaw`、`~/.autoclaw`、`~/.auto-claw` | 面板兼容文件 + 会话/项目 JSON 启发式解析 |
+
+通用启发式解析是**防御式**的：只识别 `sessions/`、`conversations/`、`chats/`、`projects/`、`traces/` 等目录或文件名带 session/conversation/chat/project/trace 的 JSON，且必须有明确 id + 时间或名称，避免把无关配置文件误判成项目；源字段按平台名标注（cursor / dumate / qclaw / autoclaw）。
 
 任何平台只要在工作目录产出 `data.json`（`projects` / `topics` / `monthly` 结构），都可以用 `--dir <工作目录>` 指定同步；也可以把面板源文件复制到该平台工作区，工具会自动发现。
 
@@ -123,7 +135,7 @@ node ~/.goodname/agent-sync/bin/goodname-sync.js --service uninstall
 - 电脑关机错过的时间点，开机/登录后立即补跑
 - 进程崩溃自动拉起（macOS LaunchAgent / Linux systemd user unit）
 
-日志：macOS `/tmp/goodname-agent-sync.log`。
+日志：macOS / Linux `/tmp/goodname-agent-sync.log`，Windows `%LOCALAPPDATA%\goodname\agent-sync.log`。
 
 ## 密钥管理
 
