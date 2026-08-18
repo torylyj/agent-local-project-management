@@ -107,16 +107,24 @@ function sessionName(workDir, sid, updatedAt) {
 // 从会话内容（真实用户提问）提炼项目名：去掉请求套话、只取第一句、控制在 28 字内
 export function deriveProjectName(summary) {
   if (!summary) return '';
-  let s = String(summary).trim();
+  let s = String(summary)
+    .replace(/["'“”‘’]/g, '')
+    .replace(/@/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (s.length < 4) return '';
-  s = s.replace(/^(请帮我|请你|麻烦你|帮我一下|帮我|帮忙|拜托|能否|能不能|可以帮我|请)/, '');
-  s = s.replace(/^(把|将|给|为|对)/, '');
+  s = s.replace(/^(请帮我|请你|麻烦你|帮我一下|帮我|帮忙|拜托|能否|能不能|可以帮我|请)\s*/, '');
+  s = s.replace(/^(把|将|给|为|对)\s*/, '');
   s = s.replace(/[。！？!?；;，,、][\s\S]*$/, ''); // 只取第一句
   s = s.trim();
-  if (s.length > 28) {
-    const cut = s.slice(0, 28);
+  // 去掉路径前缀（如 /Users/xxx/...、C:\...、~...）只留最后一段
+  s = s.replace(/^([/\\]|[A-Za-z]:[/\\]|~[/\\])[\s\S]*?([^/\\]+)$/, '$2');
+  s = s.replace(/[么吗呢]$/, ''); // 去掉疑问语气词
+  s = s.trim();
+  if (s.length > 24) {
+    const cut = s.slice(0, 24);
     const idx = Math.max(cut.lastIndexOf('，'), cut.lastIndexOf(','), cut.lastIndexOf(' '), cut.lastIndexOf('：'), cut.lastIndexOf(':'));
-    s = idx > 12 ? cut.slice(0, idx) : cut;
+    s = idx > 10 ? cut.slice(0, idx) : cut;
   }
   s = s.replace(/[，,、\s:：\-—]+$/, '').trim();
   return s.length >= 4 ? s : '';
