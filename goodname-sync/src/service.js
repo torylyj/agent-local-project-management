@@ -64,6 +64,7 @@ export function daemonLoop(syncFn, intervalHours, retryMinutes) {
       await syncFn();
       st.last_success = new Date().toISOString();
       st.status = 'ok';
+      delete st.error; // 成功后清空上一次的失败信息，避免出现「ok（fetch failed）」矛盾状态
     } catch (err) {
       st.status = 'fail';
       st.error = String(err.message || err).slice(0, 300);

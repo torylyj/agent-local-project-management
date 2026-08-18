@@ -213,6 +213,7 @@ export async function syncAction(source, options) {
     for (const p of agentProjects) {
       if (!lookupName(p, agentNames)) unnamedKeys.add(agentNameKey(p) || p.name);
     }
+    const allowPlaceholder = !!options.allowPlaceholder;
     if (unnamedKeys.size) {
       writePendingNames(agentProjects);
       if (options.aiNames && !options.dryRun) {
@@ -233,13 +234,17 @@ export async function syncAction(source, options) {
           console.log(`  ✓ 已为 ${got} 个会话生成项目名并保存到 ~/.goodname/project-names.json`);
         }
       }
-      if (unnamedKeys.size) {
+      if (unnamedKeys.size && !allowPlaceholder) {
         console.log(`  ⏸ ${unnamedKeys.size} 个会话尚未生成项目名，已暂缓上传（不会用提问/文件夹名硬传）`);
-        console.log('    运行 --generate-names 查看命名清单，或让 Agent 生成 ~/.goodname/project-names.json 后重新同步');
+        console.log('    ⚡ 一键命名（把这条指令发给任意 Agent）：node ... --generate-names');
+        console.log('      已生成清单 ~/.goodname/pending-names.json，Agent 把项目名写入 ~/.goodname/project-names.json 后重新同步');
+        console.log('    或加 --allow-placeholder 先用中性名上传（数据可见，之后可随时更名清理）');
       }
     }
-    // 未命名的会话不进入上传清单（先生成名称，再上传）
-    const namedAgentProjects = agentProjects.filter(p => !unnamedKeys.has(agentNameKey(p) || p.name));
+    // 未命名的会话不进入上传清单（先生成名称，再上传）；--allow-placeholder 时用中性名照常上传
+    const namedAgentProjects = allowPlaceholder
+      ? agentProjects
+      : agentProjects.filter(p => !unnamedKeys.has(agentNameKey(p) || p.name));
     const allNamedProjects = mergeAgentProjects(panelProjects, namedAgentProjects, cloudDeletedKeys);
     const mergedHistory = applyMergeHistory(allNamedProjects, cloudMerges);
     // 字段级合并：管理字段云端优先、内容字段本地优先、冲突自动备份

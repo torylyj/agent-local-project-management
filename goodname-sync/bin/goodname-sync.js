@@ -24,6 +24,7 @@ function parseArgs(argv) {
     else if (a === '--verify-diff') options.verifyDiff = true;
     else if (a === '--ai-names') options.aiNames = true;
     else if (a === '--generate-names') options.generateNames = true;
+    else if (a === '--allow-placeholder') options.allowPlaceholder = true;
     else if (a === '--service') options.service = argv[++i];
     else if (a === '--help' || a === '-h') { options.help = true; }
     else if (a.startsWith('-')) { console.error('未知参数: ' + a); process.exit(1); }
@@ -62,6 +63,7 @@ if (options.help) {
       --verify-diff    核对本地(字段合并后)与云端是否一致（dry-run 或上传后）
       --ai-names       自动调用本机 Codex 为 Agent 会话生成项目名（未命名会话暂缓上传）
       --generate-names 输出 Agent 项目命名清单，交给任意 Agent 生成名称后保存为 project-names.json
+      --allow-placeholder 未命名会话先用中性日期名上传（数据可见，之后可随时更名清理）
 `);
   process.exit(0);
 }
