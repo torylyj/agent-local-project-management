@@ -212,7 +212,7 @@ BEGIN
       description = EXCLUDED.description,
       status = EXCLUDED.status,
       category = EXCLUDED.category,
-      tokens_used = EXCLUDED.tokens_used,
+      tokens_used = GREATEST(projects.tokens_used, EXCLUDED.tokens_used),
       started_at = EXCLUDED.started_at,
       updated_at = now(),
       last_synced_at = now(),

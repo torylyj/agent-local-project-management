@@ -158,6 +158,13 @@ function estimateProgress(status, criteria) {
   return { todo: 10, blocked: 40, hold: 20, doing: 50 }[status] || 0;
 }
 
+function fmtLocalTokens(n){
+  if(!n) return '0';
+  if(n >= 1e8) return (n / 1e8).toFixed(2).replace(/\.00$/, '') + ' 亿';
+  if(n >= 1e4) return Math.round(n / 1e4) + ' 万';
+  return String(n);
+}
+
 // 把 WorkBuddy 的 sessions.json + traces 解析为轻量项目（source=workbuddy）
 export function findWorkBuddyProjects(verbose) {
   const wbRoot = WORKBUDDY_DIR.startsWith('~') ? path.join(os.homedir(), WORKBUDDY_DIR.slice(1)) : WORKBUDDY_DIR;
@@ -284,36 +291,48 @@ export function findWorkBuddyProjects(verbose) {
           return true;
         }).slice(-8)
       : [];
-    const milestones = msItems.length ? msItems.map(it => ({
-      date: String(it.date || '').slice(0, 10),
-      text: it.summary ? '推进：' + it.summary.slice(0, 42) : 'WorkBuddy 会话执行',
-      done: true
-    })) : ((rec && Array.isArray(rec.dates) ? [...new Set(rec.dates)] : []).slice(-5).map(dt => ({
-      date: String(dt || '').slice(0, 10),
-      text: 'WorkBuddy 会话执行',
-      done: true
-    })));
-    const next = [];
-    if (rec && rec.summary) next.push({ text: '继续推进会话目标：' + rec.summary.slice(0, 90), p: 'mid' });
-    if (stale) next.push({ text: '该会话已超过 14 天未更新，请核对产出并决定继续或归档', p: 'low' });
-    if (!next.length) next.push({ text: '查看会话产出并推进下一步', p: 'mid' });
+    // 产出文档：真实存在、按时间窗归属、去重（前面 artifact 已过滤虚拟 URI）
     const files = [];
     if (startedAt || updatedAt) {
       const lo = (Date.parse(startedAt) || 0) - 2 * DAY;
       const up = Date.parse(updatedAt) || Date.now();
       const hi = up + 2 * DAY;
+      const seenF = new Set();
       artifacts.forEach(a => {
-        if (a.ts && a.ts >= lo && a.ts <= hi && files.length < 8) files.push(a.path || a.name);
+        const f = a.path || a.name;
+        if (a.ts && a.ts >= lo && a.ts <= hi && !seenF.has(f) && files.length < 8) { seenF.add(f); files.push(f); }
       });
     }
+    // 里程碑：优先真实产出文档，其次提炼后的任务标题（不写原始提问「推进：问题」）
+    const milestones = [];
+    const seenMs = new Set();
+    for (const f of files) {
+      if (!seenMs.has(f)) {
+        seenMs.add(f);
+        milestones.push({ date: String(updatedAt || '').slice(0, 10), text: '产出：' + path.basename(String(f)).slice(0, 40), done: true });
+      }
+    }
+    if (rec && Array.isArray(rec.items)) {
+      for (const it of rec.items) {
+        const t = deriveProjectName(it.summary);
+        if (t && !seenMs.has(t)) {
+          seenMs.add(t);
+          milestones.push({ date: String(it.date || '').slice(0, 10), text: '任务：' + t.slice(0, 40), done: true });
+        }
+        if (milestones.length >= 8) break;
+      }
+    }
+    if (!milestones.length) milestones.push({ date: String(updatedAt || '').slice(0, 10), text: '会话执行', done: true });
+    const next = [];
+    if (stale) next.push({ text: '该会话已超过 14 天未更新，请核对产出并决定继续或归档', p: 'low' });
+    next.push({ text: '继续推进该项目，建议由 AI 依据会话内容补全下一步建议', p: 'mid' });
     const criteria = [];
-    if (rec && rec.summary) criteria.push({ text: '完成会话目标：' + rec.summary.slice(0, 70), done: false });
-    if (files.length) criteria.push({ text: '会话产出文件已归档', done: true });
-    if (!criteria.length) criteria.push({ text: '会话执行完成（建议由 AI 依据会话补全验收标准）', done: false });
+    if (files.length) criteria.push({ text: '产出文档已归档（' + files.length + ' 个）', done: true });
+    criteria.push({ text: '会话目标已记录，建议由 AI 依据会话补全验收标准', done: false });
     const decisions = rec ? [{
       date: String((rec.last || rec.first || '').slice(0, 10)),
-      title: 'WorkBuddy 会话',
-      reason: rec.summary ? '会话要点：' + rec.summary.slice(0, 90) : '会话追踪记录',
+      title: 'WorkBuddy 会话记录',
+      reason: '共 ' + ((rec.count) || 1) + ' 次执行 · 约 ' + fmtLocalTokens(rec.tokens) + ' · 产出 ' + files.length + ' 个文档',
       tags: ['workbuddy']
     }] : [];
     projects.push({
@@ -332,9 +351,7 @@ export function findWorkBuddyProjects(verbose) {
       updated: String(updatedAt || '').slice(0, 10),
       tokens: (rec && rec.tokens) || 0,
       conv: (rec && rec.count) || 1,
-      intro: (rec && rec.summary)
-        ? '来自 WorkBuddy 的会话：' + rec.summary
-        : '来自 WorkBuddy 的会话，共 ' + ((rec && rec.count) || 1) + ' 次执行。',
+      intro: 'WorkBuddy 会话 · 共 ' + ((rec && rec.count) || 1) + ' 次执行 · 约 ' + fmtLocalTokens((rec && rec.tokens) || 0) + ' · 产出 ' + files.length + ' 个文档',
       agent: (rec && rec.agent) || 'workbuddy',
       milestones, next, files,
       criteria, topics: [], decisions,
@@ -478,17 +495,15 @@ export function findGenericAgentProjects(label, roots, verbose) {
           done: true
         }] : [];
         const next = [];
-        if (summary) next.push({ text: '继续推进会话目标：' + summary.slice(0, 90), p: 'mid' });
         if (stale) next.push({ text: '该会话超过 14 天未更新，请核对产出并决定继续或归档', p: 'low' });
-        if (!next.length) next.push({ text: '查看会话产出并推进下一步', p: 'mid' });
+        next.push({ text: '继续推进该项目，建议由 AI 依据会话内容补全下一步建议', p: 'mid' });
         const criteria = [];
-        if (summary) criteria.push({ text: '完成会话目标：' + summary.slice(0, 70), done: false });
-        if (files.length) criteria.push({ text: '会话产出文件已归档', done: true });
-        if (!criteria.length) criteria.push({ text: '会话执行完成（建议由 AI 依据会话补全验收标准）', done: false });
+        if (files.length) criteria.push({ text: '产出文档已归档（' + files.length + ' 个）', done: true });
+        criteria.push({ text: '会话目标已记录，建议由 AI 依据会话补全验收标准', done: false });
         const decisions = [{
           date: String(updatedAt || startedAt || '').slice(0, 10),
-          title: label + ' 会话',
-          reason: summary ? '会话要点：' + summary.slice(0, 90) : '会话追踪记录',
+          title: label + ' 会话记录',
+          reason: '共 ' + Math.max(1, count) + ' 次操作 · 约 ' + fmtLocalTokens(tokens) + ' · 产出 ' + files.length + ' 个文档',
           tags: [label]
         }];
         projects.push({
@@ -505,7 +520,7 @@ export function findGenericAgentProjects(label, roots, verbose) {
           updated: String(updatedAt || startedAt || '').slice(0, 10),
           tokens,
           conv: Math.max(1, count),
-          intro: summary ? '来自 ' + label + ' 的会话：' + summary : '来自 ' + label + ' 的会话，共 ' + Math.max(1, count) + ' 次执行。',
+          intro: label + ' 会话 · 共 ' + Math.max(1, count) + ' 次操作 · 约 ' + fmtLocalTokens(tokens) + ' · 产出 ' + files.length + ' 个文档',
           agent: String(pick(rec, ['agentName', 'agent', 'platform']) || label).slice(0, 40),
           milestones, next, files, criteria, topics: [], decisions,
         });
