@@ -163,22 +163,36 @@ export function verifyDiff(localProjects, cloudRows, verbose) {
   return { bad, lines };
 }
 
-// 月度 Token 聚合：Codex 已由 update_tokens 计入月度；WorkBuddy / 其他平台项目
-// 的 Token 此前没有进月度趋势，这里按「更新时间」归属月份并入（不重复计入 Codex）。
-export function aggregateMonthly(payload) {
-  const monthlyMap = new Map((payload.monthly || []).map(m => [m.year_month, Number(m.tokens) || 0]));
-  for (const p of payload.projects || []) {
-    const src = p.source || 'codex';
-    if (src === 'codex') continue;
-    const tokens = Number(p.tokens_used) || 0;
-    if (tokens <= 0) continue;
+// 月度 Token：按「全量项目」重算（云端全部项目 + 本地合并结果），幂等且不依赖单台设备，
+// 避免某台新设备同步时用本地小数覆盖云端合计。按项目 updated/date 归属月份。
+export function aggregateMonthly(payload, cloudRows) {
+  const byKey = new Map();
+  // 先纳入云端全部项目（账号内所有设备）
+  for (const r of (cloudRows || [])) {
+    const key = (r.name || '') + '::' + (r.source || 'codex');
+    const pp = (r.payload && typeof r.payload === 'object') ? r.payload : {};
+    byKey.set(key, {
+      tokens: Number(r.tokens_used) || 0,
+      updated: String(r.updated_at || pp.updated || pp.date || ''),
+    });
+  }
+  // 本地合并结果覆盖同名同源（字段级合并后的最终值）
+  for (const p of (payload.projects || [])) {
+    const key = (p.name || '') + '::' + (p.source || 'codex');
     const pp = (p.payload && typeof p.payload === 'object') ? p.payload : {};
-    const ref = String(pp.updated || pp.date || '');
-    const ym = ref.slice(0, 7);
+    byKey.set(key, {
+      tokens: Number(p.tokens_used) || Number(pp.tokens) || 0,
+      updated: String(pp.updated || pp.date || p.started_at || ''),
+    });
+  }
+  const monthlyMap = new Map();
+  for (const { tokens, updated } of byKey.values()) {
+    if (!tokens) continue;
+    const ym = String(updated).slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(ym)) continue;
     monthlyMap.set(ym, (monthlyMap.get(ym) || 0) + tokens);
   }
-  return [...monthlyMap].map(([year_month, tokens]) => ({
+  return [...monthlyMap].sort((a, b) => a[0].localeCompare(b[0])).map(([year_month, tokens]) => ({
     year_month,
     tokens,
     cost_estimate: parseFloat(((tokens || 0) * 0.3 / 1000000).toFixed(2)),

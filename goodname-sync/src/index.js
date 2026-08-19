@@ -286,7 +286,7 @@ export async function syncAction(source, options) {
     }
 
     const payload = buildUploadPayload({ projects: mergedProjects, topics, monthly });
-    payload.monthly = aggregateMonthly(payload);
+    payload.monthly = aggregateMonthly(payload, cloudRows);
     const totalTokens = payload.projects.reduce((s, p) => s + (p.tokens_used || 0), 0);
 
     // 完整性自检：字段齐全性 / 取值合法性 / 格式

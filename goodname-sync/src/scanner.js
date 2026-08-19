@@ -147,6 +147,17 @@ function inferCat(dir, summary) {
   return 'tooling';
 }
 
+// 项目进度估算：有完成标准按完成比例；否则按状态给基线（done=100）
+function estimateProgress(status, criteria) {
+  if (status === 'done') return 100;
+  const arr = Array.isArray(criteria) ? criteria.filter(Boolean) : [];
+  if (arr.length) {
+    const done = arr.filter(c => c && c.done === true).length;
+    return Math.min(99, Math.round((done / arr.length) * 100));
+  }
+  return { todo: 10, blocked: 40, hold: 20, doing: 50 }[status] || 0;
+}
+
 // 把 WorkBuddy 的 sessions.json + traces 解析为轻量项目（source=workbuddy）
 export function findWorkBuddyProjects(verbose) {
   const wbRoot = WORKBUDDY_DIR.startsWith('~') ? path.join(os.homedir(), WORKBUDDY_DIR.slice(1)) : WORKBUDDY_DIR;
@@ -305,6 +316,7 @@ export function findWorkBuddyProjects(verbose) {
       source: 'workbuddy',
       cat: inferCat(s && s.workDir, rec && rec.summary),
       status: stale ? 'hold' : 'doing',
+      progress: estimateProgress(stale ? 'hold' : 'doing', criteria),
       date: String(startedAt || '').slice(0, 10),
       updated: String(updatedAt || '').slice(0, 10),
       tokens: (rec && rec.tokens) || 0,
@@ -475,6 +487,7 @@ export function findGenericAgentProjects(label, roots, verbose) {
           source: label,
           cat: inferCat(workDir, summary),
           status: stale ? 'hold' : 'doing',
+          progress: estimateProgress(stale ? 'hold' : 'doing', criteria),
           date: String(startedAt || updatedAt || '').slice(0, 10),
           updated: String(updatedAt || startedAt || '').slice(0, 10),
           tokens,
