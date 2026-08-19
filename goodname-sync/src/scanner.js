@@ -274,12 +274,22 @@ export function findWorkBuddyProjects(verbose) {
     const updatedMs = Date.parse(updatedAt || '') || Date.now();
     const stale = Date.now() - updatedMs > 14 * DAY;
     // 里程碑 = 真实操作历史（每条 trace 的实际用户任务）；无内容时回退为会话执行记录
-    const msItems = (rec && Array.isArray(rec.items) && rec.items.length) ? rec.items.slice(-8) : [];
+    // 同一会话可能拆成多个 trace，且每条 trace 的 span 里都重复记录同一提问，
+    // 按提问文本去重后取最后 8 条，避免重复里程碑。
+    const seenQ = new Set();
+    const msItems = (rec && Array.isArray(rec.items) && rec.items.length)
+      ? rec.items.filter(it => {
+          const k = (it && it.summary) || '';
+          if (!k || seenQ.has(k)) return false;
+          seenQ.add(k);
+          return true;
+        }).slice(-8)
+      : [];
     const milestones = msItems.length ? msItems.map(it => ({
       date: String(it.date || '').slice(0, 10),
       text: it.summary ? '推进：' + it.summary.slice(0, 42) : 'WorkBuddy 会话执行',
       done: true
-    })) : ((rec && Array.isArray(rec.dates) ? rec.dates : []).slice(-5).map(dt => ({
+    })) : ((rec && Array.isArray(rec.dates) ? [...new Set(rec.dates)] : []).slice(-5).map(dt => ({
       date: String(dt || '').slice(0, 10),
       text: 'WorkBuddy 会话执行',
       done: true
