@@ -120,7 +120,7 @@ export function buildUploadPayload(data) {
       dir: p.dir || null,
       sync_version: SYNC_VERSION,
     },
-    payload: p,
+    payload: { ...p, sync_version: SYNC_VERSION },
   }));
 
   const topics = (data.topics || []).map((t, i) => ({
