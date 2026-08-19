@@ -353,6 +353,7 @@ export function findWorkBuddyProjects(verbose) {
       conv: (rec && rec.count) || 1,
       intro: 'WorkBuddy 会话 · 共 ' + ((rec && rec.count) || 1) + ' 次执行 · 约 ' + fmtLocalTokens((rec && rec.tokens) || 0) + ' · 产出 ' + files.length + ' 个文档',
       agent: (rec && rec.agent) || 'workbuddy',
+      summary: (rec && rec.summary) || '',
       milestones, next, files,
       criteria, topics: [], decisions,
     });
@@ -522,6 +523,7 @@ export function findGenericAgentProjects(label, roots, verbose) {
           conv: Math.max(1, count),
           intro: label + ' 会话 · 共 ' + Math.max(1, count) + ' 次操作 · 约 ' + fmtLocalTokens(tokens) + ' · 产出 ' + files.length + ' 个文档',
           agent: String(pick(rec, ['agentName', 'agent', 'platform']) || label).slice(0, 40),
+          summary,
           milestones, next, files, criteria, topics: [], decisions,
         });
       }

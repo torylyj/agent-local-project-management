@@ -4,6 +4,7 @@ import { deriveProjectName, mergeAgentProjects } from '../src/scanner.js';
 import { aggregateMonthly } from '../src/fieldMerge.js';
 import { generateTopicsFromProjects } from '../src/topicsGen.js';
 import { lookupName } from '../src/agentNaming.js';
+import { isLikelyProject } from '../src/classify.js';
 
 test('deriveProjectName：从提问提炼正式项目名', () => {
   assert.equal(deriveProjectName('请帮我配置 Goodname 同步'), '配置 Goodname 同步');
@@ -61,4 +62,13 @@ test('lookupName：按 sid 或 dir 命中 Agent 命名', () => {
   assert.equal(lookupName({ sid: 'abc123', dir: '/work/dir1' }, names), '正式项目名');
   assert.equal(lookupName({ sid: '', dir: '/work/dir1' }, names), '目录项目名');
   assert.equal(lookupName({ sid: 'x', dir: '/y' }, names), '');
+});
+
+test('isLikelyProject：区分项目与过短日常问答', () => {
+  assert.equal(isLikelyProject({ tokens: 100, conv: 1, files: [], summary: '今天天气怎么样？' }), false);
+  assert.equal(isLikelyProject({ tokens: 100, conv: 1, files: [], summary: '你好' }), false);
+  assert.equal(isLikelyProject({ tokens: 3000, conv: 1, files: [], summary: '你好' }), true);
+  assert.equal(isLikelyProject({ tokens: 100, conv: 3, files: [], summary: '你好' }), true);
+  assert.equal(isLikelyProject({ tokens: 100, conv: 1, files: ['a.md'], summary: '你好' }), true);
+  assert.equal(isLikelyProject({ tokens: 100, conv: 1, files: [], summary: '把作品集网站部署上线' }), true);
 });

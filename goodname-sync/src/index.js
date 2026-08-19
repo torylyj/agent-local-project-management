@@ -3,6 +3,7 @@ import { parseDataFile, buildUploadPayload } from './parser.js';
 import { mergeCloudFields, saveMergeState, verifyDiff, aggregateMonthly } from './fieldMerge.js';
 import { loadAgentNames, saveAgentNames, lookupName, agentNameKey, buildNamingPrompt, writePendingNames, generateNamesWithCodex } from './agentNaming.js';
 import { generateTopicsFromProjects } from './topicsGen.js';
+import { loadClassify, saveClassify, classifyKey, isLikelyProject, excludeReason, buildClassifyPrompt } from './classify.js';
 import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken, listProjectsToken, cleanupDeviceTokensToken, deleteProjectToken } from './uploader.js';
 import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
 import { daemonLoop, installService, uninstallService, statusService } from './service.js';
@@ -98,6 +99,25 @@ export async function syncAction(source, options) {
     console.log('把 Agent 返回的 JSON 保存为 ~/.goodname/project-names.json，');
     console.log('或直接告诉 Agent 写入该文件，然后重新同步即可用正式项目名上传。');
     console.log('本机有 Codex 时，也可直接运行：node .../goodname-sync.js --auto --ai-names');
+    process.exit(0);
+  }
+
+  if (options.classify) {
+    const agentProjects = findAgentProjects(options.verbose);
+    const withKeys = (agentProjects || []).filter(p => classifyKey(p));
+    if (!withKeys.length) {
+      console.log('未发现需要甄别的 Agent 会话。');
+      process.exit(0);
+    }
+    console.log('═══════════════════════════════════════');
+    console.log('  项目 / 日常问答 甄别提示词（交给任意 Agent）');
+    console.log('═══════════════════════════════════════');
+    console.log('');
+    console.log(buildClassifyPrompt(withKeys));
+    console.log('');
+    console.log('把 Agent 返回的 JSON 保存为 ~/.goodname/project-classify.json，格式：');
+    console.log('  {"rules": {"<key>": "include" 或 "exclude"}}');
+    console.log('然后重新同步；未分类的会话默认按 Token/次数/产出启发式判断。');
     process.exit(0);
   }
 
@@ -209,6 +229,23 @@ export async function syncAction(source, options) {
       const nm = lookupName(p, agentNames);
       if (nm) p.name = nm.slice(0, 40);
     }
+    // 项目甄别：区分「真正的项目」与「过短的日常问答」；Agent 分类清单优先，其次启发式
+    const classifyRules = loadClassify();
+    for (const p of agentProjects) {
+      const key = classifyKey(p) || p.name;
+      const ov = classifyRules[key];
+      if (ov === 'include') p.excluded = false;
+      else if (ov === 'exclude') p.excluded = true;
+      else p.excluded = !isLikelyProject(p);
+      if (p.excluded) p.excludeReason = excludeReason(p);
+    }
+    const excludedProjects = agentProjects.filter(p => p.excluded);
+    if (excludedProjects.length && !options.dryRun) {
+      console.log(`  ⏭ 未上传 ${excludedProjects.length} 个会话（判定为日常问答，不是项目）：`);
+      excludedProjects.slice(0, 10).forEach(p => console.log('     · ' + (p.name || '未命名') + '（' + (p.excludeReason || '') + '）'));
+      if (excludedProjects.length > 10) console.log('     … 共 ' + excludedProjects.length + ' 个');
+      console.log('     如需复核：运行 --classify 生成甄别提示词，让 Agent 分类后保存 ~/.goodname/project-classify.json');
+    }
     const unnamedKeys = new Set();
     for (const p of agentProjects) {
       if (!lookupName(p, agentNames)) unnamedKeys.add(agentNameKey(p) || p.name);
@@ -245,7 +282,9 @@ export async function syncAction(source, options) {
     const namedAgentProjects = allowPlaceholder
       ? agentProjects
       : agentProjects.filter(p => !unnamedKeys.has(agentNameKey(p) || p.name));
-    const allNamedProjects = mergeAgentProjects(panelProjects, namedAgentProjects, cloudDeletedKeys);
+    // 甄别为「日常问答」的会话不进入上传清单
+    const uploadAgentProjects = namedAgentProjects.filter(p => !p.excluded);
+    const allNamedProjects = mergeAgentProjects(panelProjects, uploadAgentProjects, cloudDeletedKeys);
     const mergedHistory = applyMergeHistory(allNamedProjects, cloudMerges);
     // 字段级合并：管理字段云端优先、内容字段本地优先、冲突自动备份
     const mergedProjects = cred.type === 'token'
