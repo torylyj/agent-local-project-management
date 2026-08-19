@@ -4,7 +4,7 @@ import { mergeCloudFields, saveMergeState, verifyDiff, aggregateMonthly } from '
 import { loadAgentNames, saveAgentNames, lookupName, agentNameKey, buildNamingPrompt, writePendingNames, generateNamesWithCodex } from './agentNaming.js';
 import { generateTopicsFromProjects } from './topicsGen.js';
 import { loadClassify, saveClassify, classifyKey, isLikelyProject, excludeReason, buildClassifyPrompt } from './classify.js';
-import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken, listProjectsToken, cleanupDeviceTokensToken, deleteProjectToken } from './uploader.js';
+import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken, listProjectsToken, cleanupDeviceTokensToken, deleteProjectToken, recordSyncEvent, claimSyncTask, completeSyncTask } from './uploader.js';
 import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
 import { daemonLoop, installService, uninstallService, statusService } from './service.js';
 import fs from 'fs';
@@ -377,6 +377,21 @@ export async function syncAction(source, options) {
       ? await uploadWithToken(cred.value, payload, options.verbose)
       : await uploadWithKey(cred.value, payload, options.verbose);
     saveMergeState(mergedProjects);
+    // 第 1 步：记录同步完成事件（面板 Realtime 实时提示）
+    if (cred.type === 'token' && payload.projects.length) {
+      try {
+        await recordSyncEvent(cred.value, {
+          device: os.hostname(),
+          source: 'goodname-sync',
+          summary: `同步 ${payload.projects.length} 个项目 · ${payload.topics.length} 选题`,
+          projects: payload.projects.length,
+          topics: payload.topics.length,
+          tokens: totalTokens,
+        });
+      } catch (e) {
+        if (options.verbose) console.log('  同步事件记录失败（可先执行 sync_events.sql）: ' + (e.message || e));
+      }
+    }
     if (options.verifyDiff && cred.type === 'token') {
       try {
         const freshRows = await listProjectsToken(cred.value);
@@ -412,9 +427,41 @@ export async function syncAction(source, options) {
     return result;
   };
 
+  // 第 3 步：worker——轮询云端任务队列（面板「立即同步 / 深度更新」入队后由本机执行）
+  const workOnce = async () => {
+    if (options.dryRun) return;
+    const cred = resolveCredential({});
+    if (cred.type !== 'token') return;
+    let task = null;
+    try {
+      task = await claimSyncTask(cred.value, os.hostname());
+    } catch (e) {
+      if (options.verbose) console.log('  ⚠ 任务领取失败（需先执行 sync_tasks.sql）: ' + (e.message || e));
+      return;
+    }
+    if (!task) return;
+    console.log(`  📋 领取任务：${task.type}（${String(task.id).slice(0, 8)}…）`);
+    try {
+      await doSync();
+      await completeSyncTask(cred.value, task.id, 'done', { ok: true });
+      console.log(`  ✅ 任务完成：${task.type}`);
+    } catch (e) {
+      try { await completeSyncTask(cred.value, task.id, 'failed', { error: String(e.message || e).slice(0, 200) }); } catch {}
+      console.log(`  ✗ 任务失败：${(e.message || e).slice(0, 160)}`);
+    }
+  };
+
+  if (options.work) {
+    console.log('🔁 Worker 模式已启动：每 60 秒轮询云端任务队列');
+    while (true) {
+      try { await workOnce(); } catch (e) { console.log('  ⚠ worker 错误: ' + (e.message || e)); }
+      await new Promise(r => setTimeout(r, 60000));
+    }
+  }
+
   if (options.daemon) {
     console.log(`🔁 常驻模式已启动：每 3 小时同步一次 · 失败 10 分钟重试 · 开机补跑`);
-    daemonLoop(doSync, 3, 10);
+    daemonLoop(doSync, 3, 10, workOnce);
     return;
   }
 

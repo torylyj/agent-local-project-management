@@ -42,7 +42,7 @@ function saveState(obj) {
   fs.writeFileSync(STATE_PATH, JSON.stringify(obj, null, 2), 'utf-8');
 }
 
-export function daemonLoop(syncFn, intervalHours, retryMinutes) {
+export function daemonLoop(syncFn, intervalHours, retryMinutes, taskFn) {
   const intervalMs = intervalHours * 3600 * 1000;
   const retryMs = retryMinutes * 60 * 1000;
 
@@ -79,6 +79,10 @@ export function daemonLoop(syncFn, intervalHours, retryMinutes) {
     }
     while (true) {
       await new Promise((r) => setTimeout(r, 60000));
+      // 任务队列：面板入队的「立即同步 / 深度更新」优先执行
+      if (typeof taskFn === 'function') {
+        try { await taskFn(); } catch {}
+      }
       if (due()) {
         log(`scheduled run (every ${intervalHours}h)`);
         await runOnce();

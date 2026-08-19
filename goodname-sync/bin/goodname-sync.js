@@ -26,6 +26,7 @@ function parseArgs(argv) {
     else if (a === '--generate-names') options.generateNames = true;
     else if (a === '--allow-placeholder') options.allowPlaceholder = true;
     else if (a === '--classify') options.classify = true;
+    else if (a === '--work') options.work = true;
     else if (a === '--service') options.service = argv[++i];
     else if (a === '--help' || a === '-h') { options.help = true; }
     else if (a.startsWith('-')) { console.error('未知参数: ' + a); process.exit(1); }
@@ -66,6 +67,7 @@ if (options.help) {
       --generate-names 输出 Agent 项目命名清单，交给任意 Agent 生成名称后保存为 project-names.json
       --allow-placeholder 未命名会话先用中性日期名上传（数据可见，之后可随时更名清理）
       --classify        输出「项目/日常问答」甄别提示词，交给任意 Agent 分类后保存 project-classify.json
+      --work            任务队列 Worker：轮询云端任务（面板入队的同步/深度更新）并执行
 `);
   process.exit(0);
 }

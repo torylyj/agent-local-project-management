@@ -160,6 +160,49 @@ export async function deleteProjectToken(token, name, source) {
   return data === true;
 }
 
+// 第 1 步：记录同步完成事件（面板 Realtime 实时提示）
+export async function recordSyncEvent(token, ev) {
+  const data = await rpc('record_sync_event_token', {
+    p_token: token,
+    p_device: ev.device || null,
+    p_source: ev.source || 'codex',
+    p_summary: ev.summary || null,
+    p_projects: Number(ev.projects) || 0,
+    p_topics: Number(ev.topics) || 0,
+    p_tokens: Number(ev.tokens) || 0,
+  });
+  return data || null;
+}
+
+// 第 3 步：深度更新任务队列（worker 侧）
+export async function enqueueSyncTaskToken(token, type, payload) {
+  // 面板用 JWT 入队（enqueue_sync_task），worker 侧一般不需要入队；保留以便 CLI 入队
+  const data = await rpc('enqueue_sync_task_token', {
+    p_token: token,
+    p_type: type || 'sync',
+    p_payload: payload || {},
+  });
+  return data || null;
+}
+
+export async function claimSyncTask(token, device) {
+  const data = await rpc('claim_sync_task_token', {
+    p_token: token,
+    p_device: device || null,
+  });
+  return (Array.isArray(data) && data[0]) ? data[0] : null;
+}
+
+export async function completeSyncTask(token, taskId, status, result) {
+  const data = await rpc('complete_sync_task_token', {
+    p_token: token,
+    p_task_id: taskId,
+    p_status: status || 'done',
+    p_result: result || {},
+  });
+  return data === true;
+}
+
 // 免密钥模式：清理过期/已吊销的设备令牌
 export async function cleanupDeviceTokensToken(token) {
   try {
