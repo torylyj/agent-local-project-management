@@ -1,4 +1,4 @@
-import { findDataFile, findAgentProjects, mergeAgentProjects, applyMergeHistory } from './scanner.js';
+import { findDataFile, findAgentProjects, mergeAgentProjects, applyMergeHistory, scanCodexSessionMonthly } from './scanner.js';
 import { parseDataFile, buildUploadPayload } from './parser.js';
 import { mergeCloudFields, saveMergeState, verifyDiff, aggregateMonthly } from './fieldMerge.js';
 import { loadAgentNames, saveAgentNames, lookupName, agentNameKey, buildNamingPrompt, writePendingNames, generateNamesWithCodex } from './agentNaming.js';
@@ -343,7 +343,7 @@ export async function syncAction(source, options) {
     }
 
     const payload = buildUploadPayload({ projects: mergedProjects, topics, monthly });
-    payload.monthly = aggregateMonthly(payload, cloudRows);
+    payload.monthly = aggregateMonthly(payload, cloudRows, scanCodexSessionMonthly(options.verbose));
     const totalTokens = payload.projects.reduce((s, p) => s + (p.tokens_used || 0), 0);
 
     // 完整性自检：字段齐全性 / 取值合法性 / 格式

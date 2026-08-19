@@ -203,7 +203,9 @@ export function findWorkBuddyProjects(verbose) {
       }
     }
     if (traceSummary && !rec.summary) rec.summary = traceSummary;
-    if (traceSummary) rec.items.push({ date: d.trace.startedAt || '', summary: traceSummary });
+    if (traceSummary || Number(d.trace.totalTokens)) {
+      rec.items.push({ date: d.trace.startedAt || '', summary: traceSummary, tokens: Number(d.trace.totalTokens) || 0 });
+    }
     if (sid) bySession.set(sid, rec);
     else noIdTraces.push(rec);
   }
@@ -541,6 +543,55 @@ export function findAgentProjects(verbose) {
   for (const g of GENERIC_PLATFORMS) {
     out.push(...findGenericAgentProjects(g.label, g.paths, verbose));
   }
+  return out;
+}
+
+// Codex 会话逐月真实消耗：每个会话取「最终累计 total_tokens」（避免逐回合重复累加缓存输入），
+// 按会话开始时间归月。返回 { 'YYYY-MM': { tokens, cached } }。
+export function scanCodexSessionMonthly(verbose) {
+  const sessionsRoot = path.join(os.homedir(), '.codex', 'sessions');
+  if (!fs.existsSync(sessionsRoot)) return {};
+  const out = {};
+  const files = [];
+  walk(sessionsRoot, 0, 6, files);
+  for (const f of files) {
+    if (!f.endsWith('.jsonl')) continue;
+    let maxTokens = 0;
+    let cached = 0;
+    let ym = '';
+    let provider = '';
+    try {
+      for (const line of fs.readFileSync(f, 'utf-8').split('\n')) {
+        if (!line.trim()) continue;
+        const d = JSON.parse(line);
+        if (!d || typeof d !== 'object') continue;
+        if (d.type === 'session_meta') {
+          const p = d.payload || {};
+          if (p.model_provider) provider = String(p.model_provider);
+          if (!ym && p.timestamp) ym = String(p.timestamp).slice(0, 7);
+          continue;
+        }
+        if (d.type !== 'event_msg') continue;
+        const p = d.payload || {};
+        if (p.type !== 'token_count') continue;
+        const u = (p.info || {}).total_token_usage || {};
+        const t = Number(u.total_tokens) || 0;
+        if (t > maxTokens) {
+          maxTokens = t;
+          cached = Number(u.cached_input_tokens) || 0;
+          ym = String(d.timestamp || '').slice(0, 7) || ym;
+        }
+      }
+    } catch (e) {
+      continue;
+    }
+    if (!maxTokens || !ym) continue;
+    const rec = (out[ym] = out[ym] || { tokens: 0, cached: 0, providers: {} });
+    rec.tokens += maxTokens;
+    rec.cached += cached;
+    if (provider) rec.providers[provider] = (rec.providers[provider] || 0) + maxTokens;
+  }
+  if (verbose && Object.keys(out).length) console.log('  Codex 会话逐月消耗：' + Object.keys(out).map(k => k + '=' + fmtLocalTokens(out[k].tokens)).join(' '));
   return out;
 }
 

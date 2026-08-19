@@ -163,34 +163,41 @@ export function verifyDiff(localProjects, cloudRows, verbose) {
   return { bad, lines };
 }
 
-// 月度 Token：按「全量项目」重算（云端全部项目 + 本地合并结果），幂等且不依赖单台设备，
-// 避免某台新设备同步时用本地小数覆盖云端合计。按项目 updated/date 归属月份。
-export function aggregateMonthly(payload, cloudRows) {
-  const byKey = new Map();
-  // 先纳入云端全部项目（账号内所有设备）
-  for (const r of (cloudRows || [])) {
-    const key = (r.name || '') + '::' + (r.source || 'codex');
-    const pp = (r.payload && typeof r.payload === 'object') ? r.payload : {};
-    byKey.set(key, {
-      tokens: Number(r.tokens_used) || 0,
-      monthRef: String(r.started_at || pp.date || pp.started_at || pp.updated || ''),
-    });
-  }
-  // 本地合并结果覆盖同名同源（字段级合并后的最终值）
-  for (const p of (payload.projects || [])) {
-    const key = (p.name || '') + '::' + (p.source || 'codex');
-    const pp = (p.payload && typeof p.payload === 'object') ? p.payload : {};
-    byKey.set(key, {
-      tokens: Number(p.tokens_used) || Number(pp.tokens) || 0,
-      monthRef: String(pp.date || p.started_at || pp.updated || ''),
-    });
-  }
+// 月度 Token：真实「会话逐月消耗」，而不是「项目累计按启动月归因」。
+// - Codex：来自 scanCodexSessionMonthly（每个会话取最终累计 total_tokens，含缓存输入）
+// - WorkBuddy / 其他平台：按每条 trace 的真实 token 归月（items 里带 tokens+date）
+// - 无 items 时兜底用项目累计按 date 月归入（近似，避免漏计）
+export function aggregateMonthly(payload, cloudRows, codexMonthly) {
   const monthlyMap = new Map();
-  for (const { tokens, monthRef } of byKey.values()) {
-    if (!tokens) continue;
-    const ym = String(monthRef).slice(0, 7);
-    if (!/^\d{4}-\d{2}$/.test(ym)) continue;
-    monthlyMap.set(ym, (monthlyMap.get(ym) || 0) + tokens);
+  for (const [ym, rec] of Object.entries(codexMonthly || {})) {
+    monthlyMap.set(ym, (monthlyMap.get(ym) || 0) + (rec.tokens || 0));
+  }
+  const seen = new Set();
+  const addProject = (p) => {
+    if (!p) return;
+    const key = (p.name || '') + '::' + (p.source || 'codex');
+    if (seen.has(key) || (p.source || 'codex') === 'codex') return; // Codex 由 codexMonthly 覆盖，避免双计
+    seen.add(key);
+    const pp = (p.payload && typeof p.payload === 'object') ? p.payload : p;
+    const items = Array.isArray(pp.items) ? pp.items : [];
+    let added = false;
+    for (const it of items) {
+      const t = Number(it && it.tokens) || 0;
+      const ym = String((it && it.date) || '').slice(0, 7);
+      if (!t || !/^\d{4}-\d{2}$/.test(ym)) continue;
+      monthlyMap.set(ym, (monthlyMap.get(ym) || 0) + t);
+      added = true;
+    }
+    if (!added) {
+      const t = Number(p.tokens_used) || Number(pp.tokens) || 0;
+      const ym = String(pp.date || pp.updated || '').slice(0, 7);
+      if (t && /^\d{4}-\d{2}$/.test(ym)) monthlyMap.set(ym, (monthlyMap.get(ym) || 0) + t);
+    }
+  };
+  for (const p of (payload.projects || [])) addProject(p);
+  for (const r of (cloudRows || [])) {
+    if ((r.source || 'codex') === 'codex') continue;
+    addProject({ name: r.name, source: r.source, tokens_used: r.tokens_used, payload: r.payload });
   }
   return [...monthlyMap].sort((a, b) => a[0].localeCompare(b[0])).map(([year_month, tokens]) => ({
     year_month,
