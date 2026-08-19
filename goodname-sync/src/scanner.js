@@ -254,15 +254,14 @@ export function findWorkBuddyProjects(verbose) {
     const d = readJsonSafe(f);
     if (!d || !Array.isArray(d.artifacts)) continue;
     for (const a of d.artifacts) {
-      if (a && (a.uri || a.name || a.title)) {
-        const uri = a.uri || '';
-        let pathVal = uri.replace(/^file:\/\//, '');
-        try { pathVal = decodeURIComponent(pathVal); } catch (e) {}
-        const tRaw = a.updatedAt || a.createdAt || '';
-        const tNum = Number(tRaw);
-        const ts = /^\d+$/.test(String(tRaw)) ? tNum : (Date.parse(tRaw) || 0);
-        artifacts.push({ name: a.name || a.title || pathVal, path: pathVal || a.name || '', ts });
-      }
+      if (!a || !a.uri || !String(a.uri).startsWith('file://')) continue; // 过滤 file-changes:// 等虚拟 URI
+      let pathVal = String(a.uri).slice(7);
+      try { pathVal = decodeURIComponent(pathVal); } catch (e) {}
+      if (!pathVal || !fs.existsSync(pathVal)) continue; // 只保留真实存在的产出文档
+      const tRaw = a.updatedAt || a.createdAt || '';
+      const tNum = Number(tRaw);
+      const ts = /^\d+$/.test(String(tRaw)) ? tNum : (Date.parse(tRaw) || 0);
+      artifacts.push({ name: a.name || path.basename(pathVal), path: pathVal, ts });
     }
   }
   const DAY = 86400000;
@@ -324,6 +323,8 @@ export function findWorkBuddyProjects(verbose) {
       sid,
       dir: (s && s.workDir) || '',
       source: 'workbuddy',
+      device: os.hostname(),
+      device_type: process.platform,
       cat: inferCat(s && s.workDir, rec && rec.summary),
       status: stale ? 'hold' : 'doing',
       progress: estimateProgress(stale ? 'hold' : 'doing', criteria),
@@ -495,6 +496,8 @@ export function findGenericAgentProjects(label, roots, verbose) {
           sid: id,
           dir: workDir,
           source: label,
+          device: os.hostname(),
+          device_type: process.platform,
           cat: inferCat(workDir, summary),
           status: stale ? 'hold' : 'doing',
           progress: estimateProgress(stale ? 'hold' : 'doing', criteria),

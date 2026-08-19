@@ -195,9 +195,26 @@ export async function installService() {
       console.log('  卸载：node .../goodname-sync.js --service uninstall');
       if (!verified) console.log('  若计划任务被安全软件拦截，请手动创建：schtasks /Create /F /TN ' + WIN_TASK + ' /TR "' + process.execPath + ' ' + here() + ' --daemon" /SC ONLOGON');
     } else {
-      console.log('⚠ 计划任务创建失败（可能被组策略/杀软拦截）');
-      console.log('  可手动创建（管理员 PowerShell）：');
-      console.log('  schtasks /Create /F /TN ' + WIN_TASK + ' /TR "' + process.execPath + ' ' + here() + ' --daemon" /SC ONLOGON');
+      // 回退：用户级注册表启动项（HKCU Run，无需管理员，不依赖 schtasks）
+      let regOk = false;
+      try {
+        const cfgDir = path.join(os.homedir(), '.goodname');
+        fs.mkdirSync(cfgDir, { recursive: true });
+        const vbsPath = path.join(cfgDir, 'goodname-sync-daemon.vbs');
+        const vbs = 'Set WshShell = CreateObject("WScript.Shell")\r\n'
+          + 'WshShell.Run "cmd /c ""' + process.execPath + '" "' + here() + '" --daemon", 0, False\r\n'
+          + 'Set WshShell = Nothing\r\n';
+        fs.writeFileSync(vbsPath, vbs, 'utf-8');
+        execSync('reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v GoodnameSync /t REG_SZ /d "' + vbsPath.replace(/\\/g, '\\\\') + '" /f', { stdio: 'ignore' });
+        regOk = true;
+        console.log('✓ 常驻同步服务已安装（Windows 注册表启动项，登录后自动运行，无需管理员）');
+        console.log('  每 3 小时同步一次 · 失败自动重试 · 登录/开机自动补跑');
+        console.log('  日志：' + LOG_PATH);
+        console.log('  卸载：node .../goodname-sync.js --service uninstall');
+      } catch (e) {
+        console.log('⚠ 计划任务与注册表启动项均失败：' + (e.message || e).slice(0, 120));
+        console.log('  可手动运行：node "' + here() + '" --auto');
+      }
     }
   } else {
     console.log('⚠ 当前平台暂不支持自动安装常驻服务，请用系统计划任务定时运行：');
@@ -220,7 +237,9 @@ export async function uninstallService() {
     console.log('✓ 常驻同步服务已卸载');
   } else if (process.platform === 'win32') {
     try { execSync('schtasks /Delete /F /TN "' + WIN_TASK + '"', { stdio: 'ignore' }); } catch {}
-    console.log('✓ 常驻同步服务已卸载（Windows 计划任务）');
+    try { execSync('reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v GoodnameSync /f', { stdio: 'ignore' }); } catch {}
+    try { fs.unlinkSync(path.join(os.homedir(), '.goodname', 'goodname-sync-daemon.vbs')); } catch {}
+    console.log('✓ 常驻同步服务已卸载（计划任务 / 注册表启动项）');
   } else {
     console.log('当前平台无自动安装的服务');
   }
