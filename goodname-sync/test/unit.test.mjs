@@ -24,7 +24,7 @@ test('mergeAgentProjects：同名会话累加合并而非丢弃', () => {
   assert.equal(out[0].urgency, 2);
 });
 
-test('aggregateMonthly：Agent 平台 Token 计入月度且不双计 Codex', () => {
+test('aggregateMonthly：按全量项目（含 Codex）重算月度，幂等不覆盖', () => {
   const payload = {
     monthly: [{ year_month: '2026-07', tokens: 100 }],
     projects: [
@@ -33,10 +33,13 @@ test('aggregateMonthly：Agent 平台 Token 计入月度且不双计 Codex', () 
       { source: 'qclaw', tokens_used: 200, payload: { date: '2026-08-01' } }
     ]
   };
-  const out = aggregateMonthly(payload);
+  const cloudRows = [
+    { name: 'cloud-only', source: 'codex', tokens_used: 50, updated_at: '2026-08-05T00:00:00Z', payload: { date: '2026-08-05' } }
+  ];
+  const out = aggregateMonthly(payload, cloudRows);
   const map = Object.fromEntries(out.map(x => [x.year_month, x.tokens]));
-  assert.equal(map['2026-07'], 400);
-  assert.equal(map['2026-08'], 200);
+  assert.equal(map['2026-07'], 800); // 500(codex) + 300(workbuddy)
+  assert.equal(map['2026-08'], 250); // 200(qclaw) + 50(cloud-only)
 });
 
 test('generateTopicsFromProjects：全项目生成、跳过已有、含完整步骤', () => {
