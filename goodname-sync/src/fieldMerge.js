@@ -173,7 +173,7 @@ export function aggregateMonthly(payload, cloudRows) {
     const pp = (r.payload && typeof r.payload === 'object') ? r.payload : {};
     byKey.set(key, {
       tokens: Number(r.tokens_used) || 0,
-      updated: String(r.updated_at || pp.updated || pp.date || ''),
+      monthRef: String(r.started_at || pp.date || pp.started_at || pp.updated || ''),
     });
   }
   // 本地合并结果覆盖同名同源（字段级合并后的最终值）
@@ -182,13 +182,13 @@ export function aggregateMonthly(payload, cloudRows) {
     const pp = (p.payload && typeof p.payload === 'object') ? p.payload : {};
     byKey.set(key, {
       tokens: Number(p.tokens_used) || Number(pp.tokens) || 0,
-      updated: String(pp.updated || pp.date || p.started_at || ''),
+      monthRef: String(pp.date || p.started_at || pp.updated || ''),
     });
   }
   const monthlyMap = new Map();
-  for (const { tokens, updated } of byKey.values()) {
+  for (const { tokens, monthRef } of byKey.values()) {
     if (!tokens) continue;
-    const ym = String(updated).slice(0, 7);
+    const ym = String(monthRef).slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(ym)) continue;
     monthlyMap.set(ym, (monthlyMap.get(ym) || 0) + tokens);
   }
