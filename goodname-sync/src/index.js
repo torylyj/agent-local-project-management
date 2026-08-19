@@ -245,6 +245,24 @@ export async function syncAction(source, options) {
       excludedProjects.slice(0, 10).forEach(p => console.log('     · ' + (p.name || '未命名') + '（' + (p.excludeReason || '') + '）'));
       if (excludedProjects.length > 10) console.log('     … 共 ' + excludedProjects.length + ' 个');
       console.log('     如需复核：运行 --classify 生成甄别提示词，让 Agent 分类后保存 ~/.goodname/project-classify.json');
+      // 清理历史残留：这些会话若之前已上传过，按 name+source 删除云端旧行
+      if (cred.type === 'token' && cloudRows.length) {
+        const cloudByName = new Map();
+        for (const r of cloudRows) cloudByName.set((r.name || '') + '::' + (r.source || 'codex'), r);
+        let pruned = 0;
+        for (const p of excludedProjects) {
+          const old = cloudByName.get((p.name || '') + '::' + (p.source || 'workbuddy'));
+          if (!old || !old.name) continue;
+          try {
+            await deleteProjectToken(cred.value, old.name, old.source || 'workbuddy');
+            console.log('     🧹 已删除历史日常问答项目：' + old.name);
+            pruned++;
+          } catch (e) {
+            if (options.verbose) console.log('     ⚠ 历史行删除失败：' + (e.message || e));
+          }
+        }
+        if (pruned) console.log(`  🧹 共清理 ${pruned} 个已上传的历史问答项目`);
+      }
     }
     const unnamedKeys = new Set();
     for (const p of agentProjects) {
