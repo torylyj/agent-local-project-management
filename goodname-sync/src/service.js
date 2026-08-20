@@ -42,9 +42,21 @@ function saveState(obj) {
   fs.writeFileSync(STATE_PATH, JSON.stringify(obj, null, 2), 'utf-8');
 }
 
-export function daemonLoop(syncFn, intervalHours, retryMinutes, taskFn) {
+export function daemonLoop(syncFn, intervalHours, retryMinutes, taskFn, heartbeatFn) {
   const intervalMs = intervalHours * 3600 * 1000;
   const retryMs = retryMinutes * 60 * 1000;
+  const heartbeatMs = 5 * 60 * 1000; // 每 5 分钟上报一次在线心跳
+  let lastHeartbeat = 0;
+
+  const maybeHeartbeat = async () => {
+    if (typeof heartbeatFn !== 'function') return;
+    const now = Date.now();
+    if (now - lastHeartbeat < heartbeatMs) return;
+    lastHeartbeat = now;
+    try {
+      await heartbeatFn();
+    } catch {}
+  };
 
   const due = () => {
     const st = loadState();
@@ -77,8 +89,10 @@ export function daemonLoop(syncFn, intervalHours, retryMinutes, taskFn) {
       log(`catch-up run (first start or missed while off)`);
       await runOnce();
     }
+    await maybeHeartbeat();
     while (true) {
       await new Promise((r) => setTimeout(r, 60000));
+      await maybeHeartbeat();
       // 任务队列：面板入队的「立即同步 / 深度更新」优先执行
       if (typeof taskFn === 'function') {
         try { await taskFn(); } catch {}

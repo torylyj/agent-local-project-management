@@ -25,6 +25,17 @@ export async function getSyncStatus(key) {
   return data || {};
 }
 
+// 免密钥模式心跳：复用 resolve_token_user 刷新设备令牌 last_used_at，
+// 让面板按「最近活跃」判断设备在线，而不是依赖 3 小时一次的同步。
+export async function heartbeatToken(token) {
+  if (!token) return null;
+  try {
+    return await rpc('resolve_token_user', { p_token: token });
+  } catch (e) {
+    return null; // 心跳失败静默（网络抖动/令牌失效都不影响主流程）
+  }
+}
+
 export async function listProjects(key) {
   const data = await rpc('list_sync_projects', { p_key: key });
   return Array.isArray(data) ? data : [];

@@ -4,7 +4,7 @@ import { mergeCloudFields, saveMergeState, verifyDiff, aggregateMonthly } from '
 import { loadAgentNames, saveAgentNames, lookupName, agentNameKey, buildNamingPrompt, writePendingNames, generateNamesWithCodex } from './agentNaming.js';
 import { generateTopicsFromProjects } from './topicsGen.js';
 import { loadClassify, saveClassify, classifyKey, isLikelyProject, excludeReason, buildClassifyPrompt } from './classify.js';
-import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken, listProjectsToken, cleanupDeviceTokensToken, deleteProjectToken, recordSyncEvent, claimSyncTask, completeSyncTask } from './uploader.js';
+import { uploadWithKey, uploadWithToken, exchangeDeviceCode, getSyncStatus, listProjects, listDeletedProjectsToken, listMergeHistoryToken, expireHiddenProjectsToken, listProjectsToken, cleanupDeviceTokensToken, deleteProjectToken, recordSyncEvent, claimSyncTask, completeSyncTask, heartbeatToken } from './uploader.js';
 import { loadConfig, saveConfig, AGENT_ROOTS } from './config.js';
 import { daemonLoop, installService, uninstallService, statusService } from './service.js';
 import fs from 'fs';
@@ -451,17 +451,30 @@ export async function syncAction(source, options) {
     }
   };
 
+  // 在线心跳：常驻/Worker/监控模式下每 5 分钟上报一次，面板据此判断设备在线
+  const beatOnce = async () => {
+    if (options.dryRun) return;
+    const cred = resolveCredential({});
+    if (cred.type !== 'token') return;
+    await heartbeatToken(cred.value);
+  };
+
   if (options.work) {
     console.log('🔁 Worker 模式已启动：每 60 秒轮询云端任务队列');
+    let lastBeat = 0;
     while (true) {
       try { await workOnce(); } catch (e) { console.log('  ⚠ worker 错误: ' + (e.message || e)); }
+      if (Date.now() - lastBeat >= 5 * 60 * 1000) {
+        lastBeat = Date.now();
+        try { await beatOnce(); } catch {}
+      }
       await new Promise(r => setTimeout(r, 60000));
     }
   }
 
   if (options.daemon) {
-    console.log(`🔁 常驻模式已启动：每 3 小时同步一次 · 失败 10 分钟重试 · 开机补跑`);
-    daemonLoop(doSync, 3, 10, workOnce);
+    console.log(`🔁 常驻模式已启动：每 3 小时同步一次 · 5 分钟心跳 · 失败 10 分钟重试 · 开机补跑`);
+    daemonLoop(doSync, 3, 10, workOnce, beatOnce);
     return;
   }
 
@@ -480,6 +493,13 @@ export async function syncAction(source, options) {
       }, 5000);
     });
     process.on('SIGINT', () => { watcher.close(); console.log('\n监控已停止'); process.exit(0); });
+    let lastBeat = 0;
+    const beatTimer = setInterval(async () => {
+      if (Date.now() - lastBeat < 5 * 60 * 1000) return;
+      lastBeat = Date.now();
+      try { await beatOnce(); } catch {}
+    }, 60000);
+    beatTimer.unref();
     return;
   }
 

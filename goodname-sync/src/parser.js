@@ -3,7 +3,7 @@ import vm from 'vm';
 import path from 'path';
 
 // 同步工具版本：面板据此提示「工具版本过旧」；每次发布新功能时递增
-export const SYNC_VERSION = '1.2.0';
+export const SYNC_VERSION = '1.2.1';
 
 // 从面板 HTML 中提取 JS 数组/对象字面量（仅限纯数据，无函数调用）
 function extractValue(src, varName) {
