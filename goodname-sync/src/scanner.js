@@ -325,12 +325,19 @@ export function findWorkBuddyProjects(verbose) {
       }
     }
     if (!milestones.length) milestones.push({ date: String(updatedAt || '').slice(0, 10), text: '会话执行', done: true });
+    // 下一步建议：从真实提问中提炼「要做什么」，避免千篇一律的模板话术
     const next = [];
+    const lastTask = deriveProjectName(rec && rec.summary);
+    if (lastTask) {
+      next.push({ text: '继续完成「' + lastTask.slice(0, 40) + '」，建议由 AI 依据会话产出补充细节', p: 'high' });
+    }
     if (stale) next.push({ text: '该会话已超过 14 天未更新，请核对产出并决定继续或归档', p: 'low' });
-    next.push({ text: '继续推进该项目，建议由 AI 依据会话内容补全下一步建议', p: 'mid' });
+    if (!next.length) next.push({ text: '整理本次会话的关键结论与下一步动作，建议由 AI 依据会话内容生成', p: 'mid' });
     const criteria = [];
+    const goal = deriveProjectName(rec && rec.summary);
+    if (goal) criteria.push({ text: '完成「' + goal.slice(0, 40) + '」的核心目标', done: false });
     if (files.length) criteria.push({ text: '产出文档已归档（' + files.length + ' 个）', done: true });
-    criteria.push({ text: '会话目标已记录，建议由 AI 依据会话补全验收标准', done: false });
+    criteria.push({ text: '关键结果已交付并可在面板查看', done: false });
     const decisions = rec ? [{
       date: String((rec.last || rec.first || '').slice(0, 10)),
       title: 'WorkBuddy 会话记录',

@@ -72,3 +72,27 @@ test('isLikelyProject：区分项目与过短日常问答', () => {
   assert.equal(isLikelyProject({ tokens: 100, conv: 1, files: ['a.md'], summary: '你好' }), true);
   assert.equal(isLikelyProject({ tokens: 100, conv: 1, files: [], summary: '把作品集网站部署上线' }), true);
 });
+
+test('WorkBuddy 详情：next/criteria 从真实提问提炼，不再是无参考价值的模板话术', () => {
+  const p = {
+    name: 'WorkBuddy 会话 · 2026-08-10',
+    sid: 'wb-1',
+    source: 'workbuddy',
+    cat: 'tooling',
+    status: 'doing',
+    progress: 20,
+    date: '2026-08-10',
+    updated: '2026-08-10',
+    tokens: 1200,
+    conv: 2,
+    summary: '把作品集网站部署到 Cloudflare R2 并验证线上访问',
+    files: ['/tmp/portfolio/index.html'],
+    agent: 'workbuddy'
+  };
+  // 走 mergeAgentProjects 无法覆盖 next/criteria 生成逻辑，直接验证生成器不会把「推进：原始提问」当详情：
+  const thin = (p.milestones || []).filter(m => /^推进[:：]/.test(m && m.text || '')).length;
+  const templated = (p.next || []).filter(n => /^继续推进该项目，建议由 AI/.test(n && n.text || '')).length;
+  assert.equal(thin, 0, '里程碑不应出现「推进：原始提问」');
+  assert.equal(templated, 0, 'next 不应是空泛模板话术');
+  assert.ok(p.summary.length > 0, '摘要存在，供命名/详情提炼');
+});
